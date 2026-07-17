@@ -1,0 +1,10 @@
+include dash_mui_scheduler/*.js
+include dash_mui_scheduler/*.js.map
+include dash_mui_scheduler/*.LICENSE.txt
+include dash_mui_scheduler/package-info.json
+include dash_mui_scheduler/metadata.json
+include package.json
+include README.md
+include LICENSE
+include CHANGELOG.md
+include skills.md

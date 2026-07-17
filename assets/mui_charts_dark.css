@@ -1,0 +1,426 @@
+/* ============================================================
+   Dash — Initial Loading Screen with Liquid Animation
+   ============================================================ */
+
+@keyframes liquid-drift-1 {
+    0%   { transform: translate(0, 0) scale(1); opacity: 0.5; }
+    33%  { transform: translate(60px, -40px) scale(1.15); opacity: 0.7; }
+    66%  { transform: translate(-30px, 30px) scale(0.9); opacity: 0.4; }
+    100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+}
+@keyframes liquid-drift-2 {
+    0%   { transform: translate(0, 0) scale(1); opacity: 0.4; }
+    33%  { transform: translate(-50px, 50px) scale(1.2); opacity: 0.6; }
+    66%  { transform: translate(40px, -20px) scale(0.85); opacity: 0.35; }
+    100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+}
+@keyframes liquid-drift-3 {
+    0%   { transform: translate(0, 0) scale(1.1); opacity: 0.3; }
+    50%  { transform: translate(30px, 40px) scale(0.9); opacity: 0.55; }
+    100% { transform: translate(0, 0) scale(1.1); opacity: 0.3; }
+}
+@keyframes logo-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.03); opacity: 0.9; }
+}
+
+._dash-loading {
+    margin: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+    font-size: 0;
+    z-index: 9999;
+    overflow: hidden;
+    /* Light mode default */
+    background: #f8f9fa;
+}
+
+/* Liquid blobs via box-shadows on pseudo-elements */
+._dash-loading::before {
+    content: "";
+    position: absolute;
+    top: 20%;
+    left: 15%;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(25, 118, 210, 0.18) 0%, transparent 70%);
+    filter: blur(60px);
+    animation: liquid-drift-1 8s ease-in-out infinite;
+    pointer-events: none;
+}
+
+._dash-loading::after {
+    content: "";
+    display: block;
+    width: 180px;
+    height: 180px;
+    background-image: url("/assets/dms_logo.svg");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    position: relative;
+    z-index: 2;
+    animation: logo-pulse 2.5s ease-in-out infinite;
+}
+
+/* Extra liquid blobs — injected via a sibling trick using the loading div's outline */
+/* We use a separate element approach via CSS on the body during loading */
+body:has(._dash-loading) {
+    overflow: hidden;
+}
+
+/* Second and third blob via a global style during loading */
+body:has(._dash-loading)::before {
+    content: "";
+    position: fixed;
+    bottom: 15%;
+    right: 10%;
+    width: 350px;
+    height: 350px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(66, 165, 245, 0.15) 0%, transparent 70%);
+    filter: blur(70px);
+    animation: liquid-drift-2 10s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 9998;
+}
+
+body:has(._dash-loading)::after {
+    content: "";
+    position: fixed;
+    top: 50%;
+    left: 55%;
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(129, 199, 132, 0.12) 0%, transparent 70%);
+    filter: blur(50px);
+    animation: liquid-drift-3 7s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 9998;
+}
+
+/* --- Dark mode loading screen --- */
+[data-mantine-color-scheme="dark"] ._dash-loading {
+    background: #1a1b1e;
+}
+
+[data-mantine-color-scheme="dark"] ._dash-loading::before {
+    background: radial-gradient(circle, rgba(66, 165, 245, 0.12) 0%, transparent 70%);
+}
+
+[data-mantine-color-scheme="dark"] body:has(._dash-loading)::before {
+    background: radial-gradient(circle, rgba(25, 118, 210, 0.10) 0%, transparent 70%);
+}
+
+[data-mantine-color-scheme="dark"] body:has(._dash-loading)::after {
+    background: radial-gradient(circle, rgba(76, 175, 80, 0.08) 0%, transparent 70%);
+}
+
+/* ============================================================
+   Dash MUI Charts — Dark Mode Overrides
+   Keyed off Mantine's data-mantine-color-scheme attribute on <html>
+   ============================================================ */
+
+/* --- MUI X Charts: Axis labels & ticks --- */
+[data-mantine-color-scheme="dark"] .MuiChartsAxis-tickLabel {
+    fill: rgba(255, 255, 255, 0.82) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiChartsAxis-label {
+    fill: rgba(255, 255, 255, 0.82) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiChartsAxis-line,
+[data-mantine-color-scheme="dark"] .MuiChartsAxis-tick {
+    stroke: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* --- MUI X Charts: Grid --- */
+[data-mantine-color-scheme="dark"] .MuiChartsGrid-line {
+    stroke: rgba(255, 255, 255, 0.10) !important;
+}
+
+/* --- MUI X Charts: Legend --- */
+[data-mantine-color-scheme="dark"] .MuiChartsLegend-root text {
+    fill: rgba(255, 255, 255, 0.82) !important;
+}
+/* MUI X Charts v8+ uses HTML span elements for legend labels */
+[data-mantine-color-scheme="dark"] .MuiChartsLegend-label,
+[data-mantine-color-scheme="dark"] .MuiChartsLabel-root {
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiChartsLegend-series text {
+    fill: rgba(255, 255, 255, 0.82) !important;
+}
+
+/* --- MUI X Charts: Tooltip --- */
+[data-mantine-color-scheme="dark"] .MuiChartsTooltip-paper,
+[data-mantine-color-scheme="dark"] .MuiChartsTooltip-root .MuiPaper-root {
+    background-color: #25262b !important;
+    color: rgba(255, 255, 255, 0.82) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiChartsTooltip-cell,
+[data-mantine-color-scheme="dark"] .MuiChartsTooltip-labelCell,
+[data-mantine-color-scheme="dark"] .MuiChartsTooltip-valueCell {
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiChartsTooltip-mark {
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* --- MUI X Charts: Reference lines & bar labels --- */
+[data-mantine-color-scheme="dark"] .MuiChartsReferenceLine-label {
+    fill: rgba(255, 255, 255, 0.82) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiBarLabel-root {
+    fill: rgba(255, 255, 255, 0.88) !important;
+}
+
+/* --- MUI X Charts: Toolbar & controls --- */
+[data-mantine-color-scheme="dark"] .MuiChartsToolbar-root button {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiSlider-root {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* --- MUI X Charts Pro: axis zoom slider (the match-report colony-replay scrubber).
+       Default thumbs are solid white pills — jarring on the dark canvas. --- */
+[data-mantine-color-scheme="dark"] [class*="MuiChartAxisZoomSliderTrack"] {
+    stroke: rgba(255, 255, 255, 0.28) !important;
+}
+[data-mantine-color-scheme="dark"] [class*="MuiChartAxisZoomSliderThumb"] {
+    fill: #2b2c30 !important;
+    stroke: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* --- MUI TreeView (community): the wrapper doesn't watch the Mantine scheme,
+       so /traffic's site-map tree needs explicit dark text/hover colors --- */
+[data-mantine-color-scheme="dark"] .MuiTreeItem-label {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-iconContainer svg {
+    fill: rgba(255, 255, 255, 0.6) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content:hover,
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content.Mui-focused {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content.Mui-selected,
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content.Mui-selected:hover {
+    background-color: rgba(77, 171, 247, 0.18) !important;
+}
+
+/* --- MUI TreeView: Edit mode input fields --- */
+[data-mantine-color-scheme="dark"] .MuiTreeItem-labelInput input,
+[data-mantine-color-scheme="dark"] .MuiTreeItem-labelInput .MuiInput-input,
+[data-mantine-color-scheme="dark"] .MuiTreeItem-labelInput .MuiInputBase-input {
+    color: rgba(255, 255, 255, 0.9) !important;
+    background-color: #25262b !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    caret-color: rgba(255, 255, 255, 0.9) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-labelInput .MuiInput-root::before {
+    border-bottom-color: rgba(255, 255, 255, 0.3) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-labelInput .MuiInput-root::after {
+    border-bottom-color: #90caf9 !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-labelInput {
+    background-color: transparent !important;
+}
+
+/* --- MUI TreeView / RichTreeView (all instances, not just navbar) --- */
+[data-mantine-color-scheme="dark"] .MuiRichTreeView-root .MuiTreeItem-label,
+[data-mantine-color-scheme="dark"] .MuiSimpleTreeView-root .MuiTreeItem-label {
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiRichTreeView-root .MuiTreeItem-iconContainer svg,
+[data-mantine-color-scheme="dark"] .MuiSimpleTreeView-root .MuiTreeItem-iconContainer svg {
+    fill: rgba(255, 255, 255, 0.5) !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content:hover {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content.Mui-selected {
+    background-color: rgba(25, 118, 210, 0.2) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content.Mui-selected .MuiTreeItem-label {
+    color: #90caf9 !important;
+}
+
+/* --- SimpleTreeView inside navbar (additional specificity) --- */
+[data-mantine-color-scheme="dark"] .MuiTreeItem-label {
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-iconContainer svg {
+    fill: rgba(255, 255, 255, 0.5) !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content:hover {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content.Mui-selected {
+    background-color: rgba(25, 118, 210, 0.2) !important;
+}
+[data-mantine-color-scheme="dark"] .MuiTreeItem-content.Mui-selected .MuiTreeItem-label {
+    color: #90caf9 !important;
+}
+
+/* --- Page cards --- */
+.page-card {
+    background-color: var(--mantine-color-body);
+    border: 1px solid var(--mantine-color-default-border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+/* --- Code blocks --- */
+[data-mantine-color-scheme="dark"] pre,
+[data-mantine-color-scheme="dark"] code {
+    background-color: #1a1b1e !important;
+    color: #c1c2c5 !important;
+    border-color: #373a40 !important;
+}
+
+/* --- General text inside AppShell main --- */
+[data-mantine-color-scheme="dark"] .mantine-AppShell-main h1,
+[data-mantine-color-scheme="dark"] .mantine-AppShell-main h2,
+[data-mantine-color-scheme="dark"] .mantine-AppShell-main h3,
+[data-mantine-color-scheme="dark"] .mantine-AppShell-main h4 {
+    color: var(--mantine-color-text);
+}
+[data-mantine-color-scheme="dark"] .mantine-AppShell-main p {
+    color: var(--mantine-color-text);
+}
+
+/* --- Navbar scroll area --- */
+.mantine-AppShell-navbar {
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- Custom tooltip divs (generated by callbacks in sync/crosshair pages) --- */
+[data-mantine-color-scheme="dark"] [style*="backgroundColor: white"],
+[data-mantine-color-scheme="dark"] [style*="background-color: white"] {
+    background-color: #25262b !important;
+    color: rgba(255, 255, 255, 0.82) !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Crosshair alert tags and hover card dropdowns */
+[data-mantine-color-scheme="dark"] .mantine-HoverCard-dropdown {
+    background-color: #25262b !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Alert tag badges with white background */
+[data-mantine-color-scheme="dark"] [style*="backgroundColor: rgb(255, 255, 255)"],
+[data-mantine-color-scheme="dark"] [style*="background-color: rgb(255, 255, 255)"] {
+    background-color: #2c2e33 !important;
+}
+
+/* Crosshair coord bar and code blocks with hardcoded dark bg are fine in dark mode */
+
+/* Tooltip text colors in callback-generated tooltips */
+[data-mantine-color-scheme="dark"] [style*="color: rgb(26, 26, 26)"],
+[data-mantine-color-scheme="dark"] [style*="color: #1a1a1a"] {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+[data-mantine-color-scheme="dark"] [style*="color: rgb(51, 51, 51)"],
+[data-mantine-color-scheme="dark"] [style*="color: #333"] {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+[data-mantine-color-scheme="dark"] [style*="color: rgb(153, 153, 153)"],
+[data-mantine-color-scheme="dark"] [style*="color: #999"] {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Composite/Scatter chart custom tooltip containers */
+[data-mantine-color-scheme="dark"] [style*="background-color: rgba(255, 255, 255"],
+[data-mantine-color-scheme="dark"] [style*="backgroundColor: rgba(255, 255, 255"] {
+    background-color: rgba(37, 38, 43, 0.95) !important;
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+
+/* Highlight sync custom tooltip overlays */
+[data-mantine-color-scheme="dark"] [style*="background-color: #f8f9fa"],
+[data-mantine-color-scheme="dark"] [style*="backgroundColor: #f8f9fa"],
+[data-mantine-color-scheme="dark"] [style*="backgroundColor: rgb(248, 249, 250)"] {
+    background-color: #25262b !important;
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+[data-mantine-color-scheme="dark"] [style*="backgroundColor: #f5f5f5"],
+[data-mantine-color-scheme="dark"] [style*="backgroundColor: rgb(245, 245, 245)"] {
+    background-color: #2c2e33 !important;
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+
+/* Section description text and small labels */
+[data-mantine-color-scheme="dark"] [style*="color: #666"],
+[data-mantine-color-scheme="dark"] [style*="color: rgb(102, 102, 102)"] {
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Borders */
+[data-mantine-color-scheme="dark"] [style*="border: 1px solid #eee"],
+[data-mantine-color-scheme="dark"] [style*="border: 1px solid rgb(238, 238, 238)"] {
+    border-color: rgba(255, 255, 255, 0.12) !important;
+}
+[data-mantine-color-scheme="dark"] [style*="border: 1px solid #e0e0e0"],
+[data-mantine-color-scheme="dark"] [style*="border: 1px solid rgb(224, 224, 224)"] {
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Ensure MUI tooltip portal adapts (rendered outside AppShell) */
+[data-mantine-color-scheme="dark"] .MuiPopper-root .MuiPaper-root {
+    background-color: #25262b !important;
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+
+/* --- Changelog page markdown --- */
+.changelog-content a {
+    color: var(--mantine-color-blue-6);
+    text-decoration: none;
+}
+.changelog-content a:hover {
+    text-decoration: underline;
+}
+.changelog-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+}
+.changelog-content th,
+.changelog-content td {
+    border: 1px solid var(--mantine-color-default-border);
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 13px;
+}
+.changelog-content th {
+    font-weight: 600;
+}
+[data-mantine-color-scheme="dark"] .changelog-content th {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* --- Page-level LoadingOverlay logo theme swap --- */
+@keyframes loading-logo-breathe {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(25, 118, 210, 0.25)); }
+    50%      { transform: scale(1.03); filter: drop-shadow(0 0 16px rgba(25, 118, 210, 0.45)); }
+}
+
+.bp-loading-logo {
+    animation: loading-logo-breathe 2.5s ease-in-out infinite;
+}

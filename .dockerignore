@@ -1,0 +1,17 @@
+node_modules
+.venv
+venv
+__pycache__
+*.pyc
+.git
+.idea
+dist
+*.egg-info
+visitor_analytics.json
+# secrets + runtime state — NEVER bake into an image (a local `docker build .`
+# would otherwise COPY the real API keys via `COPY . .`)
+.env
+flask_session
+clerk_events.jsonl
+.claude
+nohup.out

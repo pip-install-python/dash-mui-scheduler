@@ -1,0 +1,38 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+
+# Generated bundle source maps (keep the built .py + .min.js)
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+.idea/
+*.swp
+
+# Claude Code scaffold (local agent config — not part of the published project)
+.claude/
+
+# Env
+.env
+
+# Credentials — never commit PyPI upload tokens
+.pypirc
+
+# Analytics
+visitor_analytics.json
+flask_session/
+clerk_events.jsonl
+security_blocklist.json

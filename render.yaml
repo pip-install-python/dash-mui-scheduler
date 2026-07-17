@@ -1,0 +1,57 @@
+# Render blueprint — dash-mui-scheduler docs (single web service, docker runtime).
+# Auto-deploys on push to main. Serves the component documentation on the
+# default *.onrender.com URL (no custom domain yet; add one later and update
+# APP_BASE_URL). Clerk auth is OFF at launch — no CLERK_* env vars → the auth
+# package cleanly no-ops (see lib/clerk_satellite.py for the later flip-on).
+#
+# FIRST DEPLOY CHECKLIST:
+#   1. Create the Blueprint from this repo; fill every `sync: false` secret in
+#      the dashboard (values live in the local .env — NEVER committed).
+#   2. DASH_BACKEND=fastapi is load-bearing: without it the app boots on flask,
+#      /healthz 404s, and Render loops the health check forever.
+#   3. APP_BASE_URL drives sitemap.xml/llms.txt absolute URLs — keep it in
+#      sync with the live URL.
+services:
+  - type: web
+    name: dash-mui-scheduler-docs
+    runtime: docker
+    # starter (512MB) is tight for 2 uvicorn workers (~250-300MB resident each
+    # with Dash 4.2 + dmc + the eager-loaded docs pages). Either run
+    # WEB_WORKERS=1 on starter or move to standard for 2 workers.
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      # --- Backend selection (REQUIRED — see checklist #2) ---
+      - key: DASH_BACKEND
+        value: fastapi
+      - key: WEB_WORKERS
+        value: "1"
+
+      # --- Public base URL (sitemap/llms absolute links + social og:url).
+      # Must match the live URL: the service name below → dash-mui-scheduler-docs.onrender.com.
+      - key: APP_BASE_URL
+        value: https://dash-mui-scheduler-docs.onrender.com
+
+      # --- MUI X license (perpetual LICENSE key, not metered — set it).
+      # The docs examples read MUI_X_LICENSE_KEY (licenseKey=os.environ.get("MUI_X_LICENSE_KEY", "")).
+      # Locally the same value lives in .env as MUI_PRO_API_KEY with an
+      # MUI_X_LICENSE_KEY=${MUI_PRO_API_KEY} alias line.
+      - key: MUI_X_LICENSE_KEY
+        sync: false
+
+      # --- Optional ---
+      # visitor analytics writes ./visitor_analytics.json (ephemeral — resets
+      # each deploy; lost-update races across workers). Acceptable for now;
+      # to persist, attach a Render disk and point ANALYTICS_FILE at it
+      # (lib/analytics_tracker.AnalyticsTracker takes data_file).
+      # - key: DASH_MCP_ENABLED        # needs dash>=4.3; no-op on 4.2
+      #   value: "1"
+      #
+      # --- Clerk (later, when the docs get a 2plot.* domain) ---
+      # Set CLERK_SECRET_KEY / CLERK_PUBLISHABLE_KEY /
+      # CLERK_SIGN_IN_URL=https://accounts.2plot.ai/sign-in /
+      # CLERK_FRONTEND_API=https://clerk.2plot.ai / CLERK_IS_SATELLITE=true /
+      # CLERK_SATELLITE_DOMAIN=<domain> / SESSION_SECRET to flip auth on.
