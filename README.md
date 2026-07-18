@@ -20,6 +20,13 @@ Drag & drop scheduling · recurrence · resources · timezones · automatic dark
 <img src="assets/dms_logo.svg" alt="dash-mui-scheduler" width="160">
 
 <br/>
+<br/>
+
+**▶️ Watch the walkthrough**
+
+[![dash-mui-scheduler walkthrough](https://img.youtube.com/vi/i-CZH7W5ZsA/maxresdefault.jpg)](https://youtu.be/i-CZH7W5ZsA?si=ElosoVpBRg1wC7yt)
+
+<br/>
 
 _Maintained by **[Pip Install Python LLC](https://pip-install-python.com)**._
 
