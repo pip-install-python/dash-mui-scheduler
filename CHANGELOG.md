@@ -10,6 +10,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- **Walkthrough video** — a video tour of the calendar, resource timeline, and
+  radial charts now sits near the top of the Quickstart page, and the README
+  header carries a clickable thumbnail linking to the same walkthrough.
+- **The docs site now reports its traffic to 2plot.ai**, the analytics home for
+  the whole 2plot network. Once an hour it sends a signed daily rollup — page
+  hits split human/bot, unique visitors, sessions, median session length, top
+  pages and visitor countries — so the network dashboard shows how the
+  documentation is actually being read. Reporting only happens when the shared
+  network secret is configured; without it the site behaves exactly as before
+  and makes no outbound calls.
+
+### Fixed
+- **Visitor counts and countries are now measured at the edge, not at the
+  proxy.** Behind Render/Cloudflare every request looked like it came from the
+  same address, which collapsed all visitors into one and mislabelled where
+  readers came from; the site now reads the forwarded client address and the
+  edge country header. Visitor geography also no longer costs a lookup on the
+  request path.
+- **The visitor ledger no longer grows without limit** — it is capped (default
+  20,000 hits) so a long-running deployment doesn't slow every page view down.
+
 ## [0.1.0] - 2026-07-16
 
 First public release — the component library on PyPI (`pip install

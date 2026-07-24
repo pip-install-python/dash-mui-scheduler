@@ -10,7 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from lib.analytics_tracker import tracker
+from lib.analytics_tracker import resolve_client_ip, resolve_country, tracker
 from lib.auth import identify_request_user
 
 
@@ -24,12 +24,15 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         try:
             client = request.client
-            ip = client.host if client else None
+            peer = client.host if client else None
+            # Behind Render/Cloudflare the socket peer is the proxy — resolve
+            # the forwarded client address, or every visitor keys as one.
             tracker.track_visit(
                 request.url.path,
                 request.headers.get("user-agent", ""),
-                ip,
+                resolve_client_ip(request.headers, peer),
                 auth_name=identify_request_user(request.cookies),
+                country=resolve_country(request.headers),
             )
         except Exception:
             pass
