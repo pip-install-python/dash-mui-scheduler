@@ -272,11 +272,16 @@ if IS_FLASK:
         """Track visitor analytics before each request."""
         try:
             from lib.auth import identify_request_user
+            from lib.analytics_tracker import resolve_client_ip, resolve_country
+            # Behind a proxy remote_addr is the PROXY — resolve the forwarded
+            # client address so visitor counts and countries mean something.
             tracker.track_visit(
                 _flask_request.path,
                 _flask_request.headers.get('User-Agent', ''),
-                _flask_request.remote_addr,
+                resolve_client_ip(_flask_request.headers,
+                                  _flask_request.remote_addr),
                 auth_name=identify_request_user(_flask_request.cookies),
+                country=resolve_country(_flask_request.headers),
             )
         except Exception:
             pass
@@ -301,6 +306,22 @@ elif BACKEND == "fastapi":
     from lib.asgi_middleware import register_asgi_middleware
 
     register_asgi_middleware(app, _SOCIAL_HTML, _SOCIAL_UAS)
+
+# ============================================================================
+# Satellite traffic reporting — this app's hourly rollup POSTed to 2plot.ai,
+# which is the analytics home for the whole 2plot network (its owner-only
+# /traffic dashboard charts every satellite side by side). Contract:
+# the hub repo's docs/network/satellite-analytics.md; sender: lib/traffic_report.
+# No-ops entirely without CROSS_APP_WEBHOOK_SECRET (local runs, forks) — no
+# thread, no network. Runs on both backends; keep WEB_WORKERS=1 so one
+# process owns the ledger and one reporter speaks for the app.
+# ============================================================================
+
+from lib.traffic_report import start_reporter as _start_traffic_reporter
+
+if not _start_traffic_reporter():
+    print("[traffic-report] disabled (no CROSS_APP_WEBHOOK_SECRET) — "
+          "the app will not appear on 2plot.ai/traffic.")
 
 # ============================================================================
 # Optional: Dash 4.3+ MCP server.

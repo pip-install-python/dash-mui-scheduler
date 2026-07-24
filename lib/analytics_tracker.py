@@ -1,6 +1,11 @@
 """
 Visitor Analytics Tracker
 Tracks visitor information including device type, bot detection, and geolocation
+
+The ledger this writes is what `lib/traffic_report` rolls up and POSTs to
+2plot.ai every hour, so the fields here are the network's raw material: an
+accurate client IP (visitors are keyed on it) and a country code both come
+from request headers, not from the socket peer.
 """
 import json
 import os
@@ -9,6 +14,50 @@ from datetime import datetime
 import re
 import requests
 from functools import lru_cache
+
+# Keep the ledger bounded: it is rewritten whole on every hit, and only the
+# last couple of days ever feed a rollup. Env-tunable for a persistent disk.
+MAX_VISITS = int(os.getenv("TRAFFIC_ANALYTICS_MAX_VISITS", "20000"))
+
+
+def resolve_client_ip(headers, fallback=None):
+    """The visitor's real address behind Cloudflare / Render's proxy.
+
+    `remote_addr` / `request.client.host` is the PROXY in production — using
+    it collapses every visitor into one (IP, user-agent) key and geolocates
+    the datacenter. Prefer `CF-Connecting-IP`, then the first hop of
+    `X-Forwarded-For` (the client; later entries are proxies).
+
+    `headers` is any case-insensitive or plain mapping of request headers.
+    """
+    try:
+        get = headers.get
+    except AttributeError:
+        return fallback
+    cf = (get("CF-Connecting-IP") or get("cf-connecting-ip") or "").strip()
+    if cf:
+        return cf
+    xff = (get("X-Forwarded-For") or get("x-forwarded-for") or "").strip()
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    real = (get("X-Real-IP") or get("x-real-ip") or "").strip()
+    return real or fallback
+
+
+def resolve_country(headers):
+    """Two-letter country from the edge (`CF-IPCountry`), or None.
+
+    Free and accurate behind Cloudflare, and it saves the per-IP geolocation
+    HTTP call in the request path. XX (unknown) and T1 (Tor) are not places.
+    """
+    try:
+        get = headers.get
+    except AttributeError:
+        return None
+    cc = (get("CF-IPCountry") or get("cf-ipcountry") or "").strip().upper()
+    return cc if len(cc) == 2 and cc not in ("XX", "T1") else None
 
 
 class AnalyticsTracker:
@@ -136,9 +185,11 @@ class AnalyticsTracker:
 
         return None
 
-    def track_visit(self, path, user_agent, ip_address=None, auth_name=None):
+    def track_visit(self, path, user_agent, ip_address=None, auth_name=None,
+                    country=None):
         """Track a visitor. auth_name (the verified Clerk display name, when the
-        caller resolved one) stamps the hit as authenticated."""
+        caller resolved one) stamps the hit as authenticated. country is the
+        edge-supplied CF-IPCountry code, when the request carried one."""
         # Skip internal Dash paths and static assets
         skip_paths = [
             '.css', '.js', '.png', '.jpg', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot',
@@ -171,13 +222,20 @@ class AnalyticsTracker:
             visit_data["auth"] = True
             visit_data["auth_name"] = str(auth_name)[:60]
 
+        # Country from the edge is free, instant and authoritative — when it is
+        # present skip the ip-api lookup entirely (an HTTP call in the request
+        # path, rate-limited to 45/min).
+        if country:
+            visit_data["country"] = country
+
         if ip_address:
             visit_data["ip_address"] = ip_address
 
-            # Try to get geolocation
-            geo_data = self.get_geolocation(ip_address)
-            if geo_data:
-                visit_data["location"] = geo_data
+            if not country:
+                # Try to get geolocation
+                geo_data = self.get_geolocation(ip_address)
+                if geo_data:
+                    visit_data["location"] = geo_data
 
         # Load existing data
         try:
@@ -188,6 +246,12 @@ class AnalyticsTracker:
 
         # Add visit
         data["visits"].append(visit_data)
+
+        # Trim the oldest hits — the file is rewritten whole on every request,
+        # so an unbounded list makes every page view slower forever. Stats are
+        # cumulative counters and survive the trim.
+        if MAX_VISITS > 0 and len(data["visits"]) > MAX_VISITS:
+            data["visits"] = data["visits"][-MAX_VISITS:]
 
         # Update stats
         data["stats"][device_type] = data["stats"].get(device_type, 0) + 1

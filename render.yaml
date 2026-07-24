@@ -42,11 +42,37 @@ services:
       - key: MUI_X_LICENSE_KEY
         sync: false
 
+      # --- Network analytics: report this app's traffic to 2plot.ai ---
+      # 2plot.ai is the analytics home for the whole network; lib/traffic_report
+      # POSTs an hourly signed rollup (hits, visitors, sessions, top pages,
+      # countries) to https://2plot.ai/api/satellite/traffic, which is what puts
+      # this app on the owner-only /traffic dashboard. The secret is the SAME
+      # CROSS_APP_WEBHOOK_SECRET every satellite holds — unset it and the
+      # reporter is a clean no-op (and the app never appears on /traffic).
+      - key: CROSS_APP_WEBHOOK_SECRET
+        sync: false
+      # Network-directory key for this app (lib/network_directory in the hub).
+      - key: SATELLITE_APP_KEY
+        value: scheduler
+
       # --- Optional ---
-      # visitor analytics writes ./visitor_analytics.json (ephemeral — resets
-      # each deploy; lost-update races across workers). Acceptable for now;
-      # to persist, attach a Render disk and point ANALYTICS_FILE at it
-      # (lib/analytics_tracker.AnalyticsTracker takes data_file).
+      # Visitor analytics writes ./visitor_analytics.json. That path is
+      # EPHEMERAL: every deploy wipes it, so a deploy mid-day makes the next
+      # rollup report only the hits since the restart and the hub (last report
+      # per (app,date) wins) keeps the smaller number. To make daily figures
+      # survive deploys, attach a disk and point the ledger at it — add
+      # alongside `plan:` above and keep WEB_WORKERS=1 (the ledger is a
+      # whole-file rewrite per hit, so two workers lose each other's updates):
+      #   disk:
+      #     name: analytics
+      #     mountPath: /var/data
+      #     sizeGB: 1
+      # then set:
+      # - key: TRAFFIC_ANALYTICS_FILE
+      #   value: /var/data/visitor_analytics.json
+      #
+      # TRAFFIC_REPORT_INTERVAL_S (default 3600) tunes the report cadence;
+      # TRAFFIC_ANALYTICS_MAX_VISITS (default 20000) caps the ledger.
       # - key: DASH_MCP_ENABLED        # needs dash>=4.3; no-op on 4.2
       #   value: "1"
       #

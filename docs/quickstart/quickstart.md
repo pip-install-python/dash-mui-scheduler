@@ -10,6 +10,14 @@ icon: mdi:rocket-launch-outline
 
 .. toc::
 
+### Walkthrough
+
+A quick video tour of `dash-mui-scheduler` — the calendar, the resource timeline,
+and the radial charts in action.
+
+.. exec::docs.quickstart.video
+    :code: false
+
 ### Installation
 
 `dash-mui-scheduler` wraps the [MUI X Scheduler](https://mui.com/x/react-scheduler/) for Dash.
