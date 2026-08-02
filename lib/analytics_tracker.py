@@ -70,11 +70,28 @@ class AnalyticsTracker:
 
     def __init__(self, data_file=None):
         self.data_file = Path(data_file or os.getenv("TRAFFIC_ANALYTICS_FILE") or "visitor_analytics.json")
-        self._ensure_file_exists()
+        # An unusable ledger path must NEVER crash the boot. This module is
+        # imported at the top of run.py, so an exception here kills every
+        # worker before a port is bound and the platform loops the deploy
+        # forever — which is exactly what happened when TRAFFIC_ANALYTICS_FILE
+        # pointed at /var/data before the disk was attached. Analytics is an
+        # accessory; the site serving is the product.
+        self._disabled = False
+        try:
+            self._ensure_file_exists()
+        except Exception as exc:
+            self._disabled = True
+            print(f"[analytics] ledger {self.data_file} is not writable "
+                  f"({exc!r}) — visitor tracking DISABLED. Fix "
+                  "TRAFFIC_ANALYTICS_FILE (attach the disk it points at, or "
+                  "unset it) to re-enable; nothing else is affected.")
 
     def _ensure_file_exists(self):
-        """Create analytics file if it doesn't exist."""
+        """Create the analytics file (and its directory) if missing."""
         if not self.data_file.exists():
+            # A persistent-disk path like /var/data/… may not exist yet on
+            # first boot — create the directory rather than failing on it.
+            self.data_file.parent.mkdir(parents=True, exist_ok=True)
             self.data_file.write_text(json.dumps({
                 "visits": [],
                 "stats": {
@@ -193,6 +210,10 @@ class AnalyticsTracker:
         """Track a visitor. auth_name (the verified Clerk display name, when the
         caller resolved one) stamps the hit as authenticated. country is the
         edge-supplied CF-IPCountry code, when the request carried one."""
+        # Ledger unusable at boot (see __init__) → tracking is off, not broken.
+        if self._disabled:
+            return
+
         # The network's internal-traffic contract: hub health sweeps, CI smoke
         # batteries and satellite-to-satellite calls identify themselves with
         # INTERNAL_UA_TOKEN in the User-Agent. Dropped at WRITE time — before

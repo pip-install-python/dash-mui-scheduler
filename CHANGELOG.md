@@ -81,6 +81,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   bookmarks survive the move and search engines are told where the pages went.
 
 ### Fixed
+- **A bad analytics-ledger path can no longer take the whole site down.**
+  Pointing `TRAFFIC_ANALYTICS_FILE` at a persistent-disk path before the disk
+  existed crashed every worker at boot, so the deploy never went live and the
+  old build kept serving. The tracker now creates the directory when it can,
+  and when the path is truly unwritable it disables itself with a clear log
+  line — the site serves either way, and a test pins both behaviours.
 - **Search engines were being told this site is a copy of a site that does not
   exist.** The page template still carried the URL it was built with
   (`dash-mui-scheduler.onrender.com`) rather than the address the docs actually
