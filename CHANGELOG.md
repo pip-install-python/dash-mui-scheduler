@@ -64,6 +64,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   and makes no outbound calls.
 
 ### Changed
+- **The maintainer's home is now [2plot.dev](https://2plot.dev).** Every link
+  that pointed at the retired `pip-install-python.com` domain — in the README,
+  the sidebar, the site's structured data and the cross-host directory — now
+  points at 2plot.dev, and the README opens with the 2plot banner.
 - **Fresher, safer dependencies.** The AI/SEO layer (`dash-improve-my-llms`) now
   installs from PyPI at ≥ 2.3.4 instead of a vendored 2.0.0 snapshot; the
   `gunicorn` web server is floored at ≥ 23 (clearing two request-smuggling

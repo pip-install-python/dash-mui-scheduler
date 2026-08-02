@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://cdn.2plot.ai/github_assets/light_mode_2plot.png" alt="2plot" width="360">
+
 # dash-mui-scheduler — MUI X scheduling for Dash
 
 **Event calendar, resource timeline & radial chart components for [Plotly Dash](https://dash.plotly.com), wrapping the [MUI X Scheduler](https://mui.com/x/react-scheduler/).**
@@ -28,7 +30,7 @@ Drag & drop scheduling · recurrence · resources · timezones · automatic dark
 
 <br/>
 
-_Maintained by **[Pip Install Python LLC](https://pip-install-python.com)**._
+_Maintained by **[Pip Install Python LLC](https://2plot.dev)**._
 
 </div>
 
@@ -98,8 +100,8 @@ Full documentation, with a **live, editable demo and source for every example**:
 
 ### 📚 **[muischeduler.2plot.dev](https://muischeduler.2plot.dev)**
 
-Part of the open-source documentation index maintained by Pip Install Python LLC at
-[pip-install-python.com](https://pip-install-python.com).
+Part of the open-source component index maintained by Pip Install Python LLC at
+[2plot.dev](https://2plot.dev).
 
 You can also run the docs site locally — it is a markdown-driven Dash app served by `run.py`:
 
@@ -271,7 +273,7 @@ dash-mui-scheduler is one of several tools built and maintained by **Pip Install
 
 | Project                                                     | What it is                                                      |
 |-------------------------------------------------------------|-----------------------------------------------------------------|
-| 📚 **[Pip Install Python](https://pip-install-python.com)** | Open-source documentation index for the Python & Dash ecosystem |
+| 📚 **[2plot.dev](https://2plot.dev)** | Open-source component index for the Python & Dash ecosystem — every library in the network |
 | 🔀 **[PiratesBargain.com](https://piratesbargain.com)**     | E-commerce / digital Commerce                                   |
 | 🧠 **[ai-agent.buzz](https://ai-agent.buzz)**               | Infinite AI canvas                                              |
 | 🎬 **[2plot.media](https://2plot.media)**                   | Videography application                                         |
@@ -281,4 +283,4 @@ dash-mui-scheduler is one of several tools built and maintained by **Pip Install
 MIT — see [LICENSE](LICENSE) for the Dash wrapper code in this package. The wrapped
 `@mui/x-scheduler` (Community) is MIT; `@mui/x-scheduler-premium` and `@mui/x-charts-premium`
 require a commercial MUI X Premium license to use without a watermark. Built by
-**[Pip Install Python LLC](https://pip-install-python.com)**. to bridge mui components into the dash framework.
+**[Pip Install Python LLC](https://2plot.dev)** to bridge MUI components into the Dash framework.

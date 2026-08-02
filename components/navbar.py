@@ -146,8 +146,8 @@ def create_content(data):
                         ),
                         create_nav_link(
                             "solar:box-bold-duotone",
-                            "Pip Components",
-                            "https://pip-install-python.com/",
+                            "2plot.dev",
+                            "https://2plot.dev/",
                             external=True
                         ),
                     ]
