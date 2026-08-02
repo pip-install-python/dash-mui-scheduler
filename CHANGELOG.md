@@ -81,6 +81,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   bookmarks survive the move and search engines are told where the pages went.
 
 ### Fixed
+- **The browser-tab and home-screen icons now show the actual logo.** Every
+  favicon size, the app-install icons and the iOS home-screen icon are drawn
+  fresh from the vector logo instead of the blurry upscale they were before.
 - **A bad analytics-ledger path can no longer take the whole site down.**
   Pointing `TRAFFIC_ANALYTICS_FILE` at a persistent-disk path before the disk
   existed crashed every worker at boot, so the deploy never went live and the
