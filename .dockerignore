@@ -15,3 +15,6 @@ flask_session
 clerk_events.jsonl
 .claude
 nohup.out
+# CI/build artifacts — never needed inside the image
+build
+.github

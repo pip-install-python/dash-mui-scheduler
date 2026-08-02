@@ -23,7 +23,7 @@ setup(
     project_urls={
         'Bug Reports': 'https://github.com/pip-install-python/dash-mui-scheduler/issues',
         'Source': 'https://github.com/pip-install-python/dash-mui-scheduler',
-        'Documentation': 'https://github.com/pip-install-python/dash-mui-scheduler#readme',
+        'Documentation': 'https://muischeduler.2plot.dev',
     },
     install_requires=['dash>=2.11.0'],
     classifiers=[

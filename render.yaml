@@ -1,7 +1,8 @@
 # Render blueprint — dash-mui-scheduler docs (single web service, docker runtime).
-# Auto-deploys on push to main. Serves the component documentation on the
-# default *.onrender.com URL (no custom domain yet; add one later and update
-# APP_BASE_URL). Clerk auth is OFF at launch — no CLERK_* env vars → the auth
+# Auto-deploys on push to main. Serves the component documentation at
+# https://muischeduler.2plot.dev (custom domain attached in the Render
+# dashboard; the service's own *.onrender.com URL 301s there — see
+# CANONICAL_HOST_REDIRECT). Clerk auth is OFF — no CLERK_* env vars → the auth
 # package cleanly no-ops (see lib/clerk_satellite.py for the later flip-on).
 #
 # FIRST DEPLOY CHECKLIST:
@@ -9,8 +10,9 @@
 #      the dashboard (values live in the local .env — NEVER committed).
 #   2. DASH_BACKEND=fastapi is load-bearing: without it the app boots on flask,
 #      /healthz 404s, and Render loops the health check forever.
-#   3. APP_BASE_URL drives sitemap.xml/llms.txt absolute URLs — keep it in
-#      sync with the live URL.
+#   3. APP_BASE_URL drives every absolute URL the site publishes about itself
+#      (canonical, og, sitemap, robots, llms) — keep it in sync with the live
+#      URL, and see the CANONICAL_HOST_REDIRECT block for the domain-move order.
 services:
   - type: web
     name: dash-mui-scheduler-docs
@@ -30,10 +32,30 @@ services:
       - key: WEB_WORKERS
         value: "1"
 
-      # --- Public base URL (sitemap/llms absolute links + social og:url).
-      # Must match the live URL: the service name below → dash-mui-scheduler-docs.onrender.com.
+      # --- Public base URL. THE single source of every absolute URL the site
+      # emits: canonical links, og:url/og:image, sitemap.xml, robots.txt,
+      # llms.txt and the JSON-LD @ids (lib/constants.BASE_URL). Get this wrong
+      # and every page canonicalises to a host that isn't the live one.
+      #
+      # The service also keeps answering on dash-mui-scheduler-docs.onrender.com
+      # forever. Two hosts serving identical pages is duplicate content, so
+      # CANONICAL_HOST_REDIRECT below 301s that one here.
       - key: APP_BASE_URL
-        value: https://dash-mui-scheduler-docs.onrender.com
+        value: https://muischeduler.2plot.dev
+
+      # --- Send every other host (the *.onrender.com URL) here with a 301.
+      # DO THIS IN ORDER — enabling it before DNS resolves bounces every
+      # visitor to a host that isn't answering:
+      #   1. Render → Settings → Custom Domains → add muischeduler.2plot.dev.
+      #   2. At the 2plot.dev DNS provider add the CNAME Render shows
+      #      (muischeduler → <service>.onrender.com); wait for Verified + the
+      #      TLS certificate to be issued.
+      #   3. Confirm https://muischeduler.2plot.dev serves the docs.
+      #   4. THEN set APP_BASE_URL above and this flag, and redeploy.
+      # /healthz, /assets, /_dash*, /api/* and /webhooks are never redirected
+      # (a 3xx on the health check would fail the deploy) — lib/canonical_host.py.
+      - key: CANONICAL_HOST_REDIRECT
+        value: "0"
 
       # --- MUI X license (perpetual LICENSE key, not metered — set it).
       # The docs examples read MUI_X_LICENSE_KEY (licenseKey=os.environ.get("MUI_X_LICENSE_KEY", "")).
@@ -51,9 +73,18 @@ services:
       # reporter is a clean no-op (and the app never appears on /traffic).
       - key: CROSS_APP_WEBHOOK_SECRET
         sync: false
-      # Network-directory key for this app (lib/network_directory in the hub).
+      # ONE short app id, network-wide (the subdomain slug / hub directory
+      # key). AD_APP_ID and the bulletin app_id follow this value in code.
       - key: SATELLITE_APP_KEY
-        value: scheduler
+        value: muischeduler
+
+      # --- Network bulletin (hub tips/announcements in the llms.txt viewer).
+      # ⚠️ Blueprint envVars apply on BLUEPRINT SYNC only, not on git-push
+      # autodeploys — set this on the SERVICE in the Render dashboard too, or
+      # the viewer keeps rendering one generic package tip and nothing looks
+      # broken. Boot log states "network bulletin: wired/off".
+      - key: NETWORK_BULLETIN_URL
+        value: https://2plot.dev/api/network/bulletin
 
       # --- Optional ---
       # Visitor analytics writes ./visitor_analytics.json. That path is

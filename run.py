@@ -1,8 +1,7 @@
 import os
 import dash
-from dash import Dash, _dash_renderer
+from dash import Dash
 from components.appshell import create_appshell
-import dash_mantine_components as dmc
 
 # AI/LLM Integration & SEO — dash-improve-my-llms 2.0
 # 2.0 supports Flask, FastAPI, and Quart via a single backend-detecting
@@ -114,6 +113,33 @@ try:  # pragma: no cover - FastAPI backend is the prod target; flask has no WS
 except Exception:
     pass
 
+# ----------------------------------------------------------------------------
+# Index template
+# ----------------------------------------------------------------------------
+# templates/index.html carries __BASE_URL__/__PAGE_URL__/__VERSION__ tokens
+# instead of hard-coded URLs. BASE_URL (lib/constants, from APP_BASE_URL) is the
+# single source of truth for every absolute URL the site emits — the reason a
+# host move is one env var, and the reason the template once spent a release
+# telling search engines every page was a duplicate of a host that never existed.
+from lib.canonical_host import canonical_redirect
+from lib.constants import (
+    APP_VERSION, BASE_URL, CANONICAL_HOST, CANONICAL_HOST_REDIRECT, OG_IMAGE_URL,
+    SITE_BRAND, SITE_DESCRIPTION, require_owned_base_url,
+)
+
+# Refuse to boot in production with an unset or platform-generated base URL —
+# every canonical/og/sitemap URL would advertise the wrong host, silently.
+require_owned_base_url()
+
+_INDEX_TEMPLATE = open('templates/index.html').read()
+_index_string = (
+    _INDEX_TEMPLATE
+    .replace("__BASE_URL__", BASE_URL)
+    .replace("__VERSION__", APP_VERSION)
+    # __PAGE_URL__ is deliberately left in place — the index hook below fills it
+    # with the REQUESTED page's canonical URL on every response.
+)
+
 app = Dash(
     __name__,
     backend=BACKEND,
@@ -122,7 +148,12 @@ app = Dash(
     external_scripts=scripts,
     update_title=None,
     prevent_initial_callbacks=True,
-    index_string=open('templates/index.html').read(),
+    index_string=_index_string,
+    # The site identity, stated the same way on every surface (network
+    # standard; tests/test_site_identity.py pins it). Feeds the <title>
+    # fallback and the "name" in the crawler HTML's JSON-LD; per-page titles
+    # come from register_page and are applied by the renderer on navigation.
+    title=SITE_BRAND,
     # Belt-and-suspenders: keep the GLOBAL websocket flag off too (see the
     # capability disable above for the full rationale).
     websocket_callbacks=False,
@@ -132,13 +163,35 @@ app = Dash(
 # re-reading the env var (which could drift between processes/workers).
 app._backend_info = BACKEND_INFO
 
+
+# ----------------------------------------------------------------------------
+# Per-request canonical URL.
+# ----------------------------------------------------------------------------
+# One HTML document serves all 17 routes, so a canonical baked into the template
+# is right for exactly one of them. The inline script in templates/index.html
+# keeps it right across CLIENT-side navigation; this hook makes the very first
+# server response already correct, so a crawler that reads HTML without running
+# JavaScript sees the real canonical instead of the home page's.
+@dash.hooks.index()
+def _resolve_page_url(index: str) -> str:
+    path = "/"
+    try:
+        request = app.backend.request_adapter()
+        if request is not None and getattr(request, "path", None):
+            path = "/" + request.path.strip("/")
+    except Exception:
+        pass  # no request context (build check, tests) → fall back to the home URL
+    return index.replace("__PAGE_URL__", BASE_URL + (path if path != "/" else "/"))
+
+
 # ============================================================================
 # AI/LLM & SEO Configuration
 # ============================================================================
 
 # Base URL for SEO (sitemap.xml + llms.txt emit absolute URLs from this).
 # Env-driven so the Render service / custom domain sets it without a code change.
-app._base_url = os.getenv("APP_BASE_URL", "https://dash-mui-scheduler-docs.onrender.com")
+
+app._base_url = BASE_URL
 
 # Configure bot management policies. See dash-improve-my-llms 2.0 SKILLS for
 # the full menu — balanced default = block training crawlers, allow AI search
@@ -159,16 +212,13 @@ app._robots_config = RobotsConfig(
 
 register_page_metadata(
     path="/",
-    name="dash-mui-scheduler",
-    description=(
-        "A Plotly Dash wrapper for the MUI X Scheduler — EventCalendar, "
-        "EventCalendarPremium and EventTimeline plus the RadialLineChart and "
-        "RadialBarChart polar charts — "
-        "with recurrence, drag & resize, resources, timezones and theming. "
-        "This site is the component documentation with live examples."
-    ),
+    # SITE_BRAND here is what dash-improve-my-llms ≥2.3.4 resolve_site_title
+    # publishes as the /llms.txt H1 and the viewer's brand chip — the display
+    # name "Home" is deliberately generic so this one is load-bearing.
+    name=SITE_BRAND,
+    description=SITE_DESCRIPTION,
     llms_doc=(
-        "# dash-mui-scheduler\n\n"
+        "# dash-mui-scheduler — MUI X scheduling for Dash\n\n"
         "A Plotly Dash component library wrapping the MUI X Scheduler.\n\n"
         "Install: `pip install dash-mui-scheduler`\n\n"
         "Components: EventCalendar (day/week/month/agenda views, drag & resize, "
@@ -207,6 +257,92 @@ if BACKEND == "fastapi":
         "[boilerplate] FastAPI showcase routers mounted: /healthz, "
         "/api/backend, /api/pages. Swagger UI at /docs, ReDoc at /redoc."
     )
+else:
+    # Flask/Quart get the same /healthz the FastAPI build declares — the
+    # 2plot.ai hourly health sweep, the CI battery and the CD deploy gate all
+    # probe it and assert the exact field `ok: true`.
+    from lib.health import register_health_route
+    register_health_route(app, BACKEND)
+
+# Cross-host directory for the 2plot network: <link rel="related"> tags, the
+# "## Network" section in /llms.txt, and followed links in the prerendered
+# body. Must run BEFORE add_llms_routes so the routes pick it up.
+from lib import network_directory
+network_directory.apply(BASE_URL)
+
+# ----------------------------------------------------------------------------
+# Crawler HTML: add the tags dash-improve-my-llms 2.0 does not emit.
+# ----------------------------------------------------------------------------
+# Search engines are served the package's prerendered per-page document, NOT the
+# SPA shell — so the canonical link, og:site_name and og:image have to be added
+# there too, or they are missing from exactly the response Google indexes.
+# Patched at the module attribute because handlers.py imports the generator
+# lazily inside the request path. Best-effort: any signature drift falls back to
+# the untouched HTML rather than breaking the crawler response.
+
+
+def _augment_crawler_html() -> None:
+    from dash_improve_my_llms import html_generator as _gen
+
+    _original = _gen.generate_static_page_html
+
+    def _with_canonical(*args, **kwargs):
+        html = _original(*args, **kwargs)
+        try:
+            path = kwargs.get("page_path") or "/"
+            url = BASE_URL + (path if path != "/" else "/")
+            extra = (
+                f'    <meta property="og:site_name" content="{SITE_BRAND}">\n'
+                f'    <meta property="og:image" content="{OG_IMAGE_URL}">\n'
+                f'    <meta property="twitter:card" content="summary_large_image">\n'
+                f'    <meta property="twitter:image" content="{OG_IMAGE_URL}">\n'
+            )
+            # dimll ≥2.3.4 emits its own canonical in the prerender; adding a
+            # second identical tag fails the battery's exactly-one check (the
+            # same double-canonical dash-email shipped and then removed). Only
+            # inject ours if the artifact ever stops emitting it.
+            if 'rel="canonical"' not in html:
+                extra = f'    <link rel="canonical" href="{url}">\n' + extra
+            return html.replace("</head>", extra + "</head>", 1)
+        except Exception:
+            return html
+
+    _gen.generate_static_page_html = _with_canonical
+
+
+try:
+    _augment_crawler_html()
+except Exception as e:  # pragma: no cover - never block startup on an SEO nicety
+    print(f"[seo] crawler-HTML canonical injection skipped: {e!r}")
+
+# ============================================================================
+# Analytics tracking (flask) — registered BEFORE add_llms_routes, deliberately.
+# Flask runs before_request hooks in registration order, and the package's bot
+# middleware ANSWERS recognized crawlers itself: registered after it, this
+# tracker never sees a Googlebot hit and the ledger undercounts every crawler.
+# (FastAPI is unaffected — its tracking lives in ASGI middleware, outermost.)
+# ============================================================================
+if IS_FLASK:
+    from flask import request as _flask_request
+
+    @app.server.before_request
+    def track_visitor():
+        """Track visitor analytics before each request."""
+        try:
+            from lib.auth import identify_request_user
+            from lib.analytics_tracker import resolve_client_ip, resolve_country
+            # Behind a proxy remote_addr is the PROXY — resolve the forwarded
+            # client address so visitor counts and countries mean something.
+            tracker.track_visit(
+                _flask_request.path,
+                _flask_request.headers.get('User-Agent', ''),
+                resolve_client_ip(_flask_request.headers,
+                                  _flask_request.remote_addr),
+                auth_name=identify_request_user(_flask_request.cookies),
+                country=resolve_country(_flask_request.headers),
+            )
+        except Exception:
+            pass
 
 # Wire up the package: /llms.txt, /<page>/llms.txt, /robots.txt, /sitemap.xml,
 # bot-detection middleware, and (on Dash 4.3+) MCP resource registration.
@@ -236,56 +372,27 @@ _register_clerk_webhook(app, BACKEND)
 # ============================================================================
 # Social-card scrapers (Twitter / Facebook / Discord / Slack / …) are treated as
 # bots by add_llms_routes and would get the SEO HTML (which has NO og:image). Serve
-# them the full meta HTML (favicon + og:image/twitter:image from templates/index.html)
-# so link unfurls show the card image. Registered OUTERMOST so it pre-empts the package.
-# Scrapers only read <head> meta, so we strip the Dash placeholders → a static string.
+# them templates/index.html's <head> with a per-page og/twitter card rendered in
+# place of {%metas%}, so unfurls show the image AND the right page's title/URL.
+# Registered OUTERMOST so it pre-empts the package. See lib/social_cards.py.
 # ============================================================================
-_SOCIAL_UAS = ('twitterbot', 'facebookexternalhit', 'facebookcatalog', 'discordbot',
-               'slackbot', 'slack-imgproxy', 'linkedinbot', 'whatsapp', 'telegrambot',
-               'pinterest', 'redditbot', 'skypeuripreview', 'embedly', 'iframely')
-_SOCIAL_HTML = open('templates/index.html').read()
-for _ph in ('{%metas%}', '{%favicon%}', '{%css%}', '{%app_entry%}', '{%config%}',
-            '{%scripts%}', '{%renderer%}', '{%title%}'):
-    _SOCIAL_HTML = _SOCIAL_HTML.replace(_ph, '')
+from lib.social_cards import SOCIAL_UAS, SocialCardRenderer, is_social_card
 
-
-def _is_social_card(ua, path, method='GET'):
-    # method-aware: social scrapers only ever GET/HEAD — a spoofed-UA POST must
-    # fall through to the real handlers (e.g. the Svix-verified /webhooks/clerk).
-    ua = (ua or '').lower()
-    return (method in ('GET', 'HEAD')
-            and any(b in ua for b in _SOCIAL_UAS)
-            and not path.startswith('/assets') and not path.startswith('/_')
-            and not path.startswith('/webhooks'))
+_social_card = SocialCardRenderer(
+    template=_INDEX_TEMPLATE.replace("__BASE_URL__", BASE_URL).replace("__VERSION__", APP_VERSION),
+    base_url=BASE_URL,
+    image_url=OG_IMAGE_URL,
+    fallback_title=SITE_BRAND,
+    fallback_description=SITE_DESCRIPTION,
+)
 
 
 # ============================================================================
-# Analytics Tracking — backend-specific.
-# Flask uses before_request; FastAPI uses ASGI middleware.
+# Social-card / canonical-host WSGI wrap — backend-specific.
+# (Flask visitor tracking registers ABOVE add_llms_routes — see that block.)
 # ============================================================================
 
 if IS_FLASK:
-    from flask import request as _flask_request
-
-    @server.before_request
-    def track_visitor():
-        """Track visitor analytics before each request."""
-        try:
-            from lib.auth import identify_request_user
-            from lib.analytics_tracker import resolve_client_ip, resolve_country
-            # Behind a proxy remote_addr is the PROXY — resolve the forwarded
-            # client address so visitor counts and countries mean something.
-            tracker.track_visit(
-                _flask_request.path,
-                _flask_request.headers.get('User-Agent', ''),
-                resolve_client_ip(_flask_request.headers,
-                                  _flask_request.remote_addr),
-                auth_name=identify_request_user(_flask_request.cookies),
-                country=resolve_country(_flask_request.headers),
-            )
-        except Exception:
-            pass
-
     # Wrap OUTERMOST (after add_llms_routes wrapped server.wsgi_app) so social-card
     # scrapers get the full og:image HTML instead of the package's image-less SEO HTML.
     _orig_wsgi = server.wsgi_app
@@ -293,8 +400,21 @@ if IS_FLASK:
     def _social_card_wsgi(environ, start_response):
         path = environ.get('PATH_INFO', '/')
         method = environ.get('REQUEST_METHOD', 'GET')
-        if _is_social_card(environ.get('HTTP_USER_AGENT'), path, method):
-            body = _SOCIAL_HTML.encode('utf-8')
+
+        # Wrong host → 301 before anything renders. Outermost of all, so a
+        # scraper or crawler on the onrender URL is sent to the real domain
+        # rather than being served a duplicate of it.
+        target = canonical_redirect(
+            environ.get('HTTP_HOST'), path, method, environ.get('QUERY_STRING', ''),
+            canonical_host=CANONICAL_HOST, enabled=CANONICAL_HOST_REDIRECT,
+        )
+        if target:
+            start_response('301 Moved Permanently',
+                           [('Location', target), ('Content-Length', '0')])
+            return [b'']
+
+        if is_social_card(environ.get('HTTP_USER_AGENT'), path, method):
+            body = _social_card(path).encode('utf-8')
             start_response('200 OK', [('Content-Type', 'text/html; charset=utf-8'),
                                       ('Content-Length', str(len(body)))])
             return [body]
@@ -305,7 +425,11 @@ if IS_FLASK:
 elif BACKEND == "fastapi":
     from lib.asgi_middleware import register_asgi_middleware
 
-    register_asgi_middleware(app, _SOCIAL_HTML, _SOCIAL_UAS)
+    register_asgi_middleware(
+        app, _social_card, SOCIAL_UAS,
+        canonical_host=CANONICAL_HOST,
+        canonical_redirect_enabled=CANONICAL_HOST_REDIRECT,
+    )
 
 # ============================================================================
 # Satellite traffic reporting — this app's hourly rollup POSTed to 2plot.ai,
@@ -322,6 +446,23 @@ from lib.traffic_report import start_reporter as _start_traffic_reporter
 if not _start_traffic_reporter():
     print("[traffic-report] disabled (no CROSS_APP_WEBHOOK_SECRET) — "
           "the app will not appear on 2plot.ai/traffic.")
+
+# ============================================================================
+# Network bulletin — hub-published tips/announcements rendered in the llms.txt
+# viewer header. The boot line states which of the two states the process is
+# in; NETWORK_BULLETIN_URL must be set on the Render SERVICE (blueprint
+# envVars only apply on Blueprint sync). See lib/bulletin.py.
+# ============================================================================
+
+from lib import bulletin as _bulletin
+
+if _bulletin.configure():
+    print(f"[dash-mui-scheduler] network bulletin: {_bulletin.url()} "
+          f"(app='{_bulletin.app_id()}')")
+else:
+    print("[dash-mui-scheduler] network bulletin: off — set "
+          f"NETWORK_BULLETIN_URL={_bulletin.HUB_BULLETIN_URL} to render the "
+          "hub's announcements")
 
 # ============================================================================
 # Optional: Dash 4.3+ MCP server.

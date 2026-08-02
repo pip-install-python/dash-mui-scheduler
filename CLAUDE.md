@@ -35,7 +35,7 @@ The React sources live in `src/lib/components/`; the **built bundle + generated 
 are COMMITTED** (`dash_mui_scheduler/*.min.js` + `*.py`), so `pip install -e .` works without
 npm. Changing anything under `src/` requires `npm install && npm run build` and committing the
 regenerated artifacts. `setup.py` reads `package.json` for the version — keep them in sync
-(currently 0.1.0; PyPI publish is an owner step in `.claude/migration/OWNER-ACTIONS.md`).
+(currently 0.1.1; PyPI publish is an owner step in `.claude/migration/OWNER-ACTIONS.md`).
 
 ## Layout
 - `dash_mui_scheduler/` — the built package (5 wrappers + bundles). `src/lib/` — React sources.
@@ -50,8 +50,32 @@ regenerated artifacts. `setup.py` reads `package.json` for the version — keep 
 - `components/` — `appshell.py`, `header.py`, `navbar.py` (Scheduler + Radial sections),
   `backend_badge.py`.
 - `pages/` — `home.py` (landing), `markdown.py` (docs loader), `not_found_404.py` (plain DMC).
-- `run.py` — entrypoint (PORT env). `Dockerfile`/`render.yaml` — fastapi Render deploy on the
-  default `*.onrender.com` URL.
+- `run.py` — entrypoint (PORT env). `Dockerfile`/`render.yaml` — fastapi Render deploy at
+  **`https://muischeduler.2plot.dev`** (custom domain; the service's own `*.onrender.com` URL
+  301s there via `lib/canonical_host.py` once `CANONICAL_HOST_REDIRECT=1`).
+
+## 2plot network standard (retrofit 2026-08-01)
+This repo follows the satellite standard
+(`pip-docs+/.claude/support_files/subdomain_blueprint/STANDARD.md`):
+- **Identity**: `lib/constants.SITE_BRAND` ("dash-mui-scheduler — MUI X scheduling for
+  Dash") reaches every surface — `Dash(title=)`, `register_page_metadata(path="/",
+  name=SITE_BRAND)`, index.html `<title>`/`og:site_name`, manifest.
+  `tests/test_site_identity.py` pins them; don't restate the brand, derive it.
+- **App id is `muischeduler` everywhere**: `lib/traffic_report.app_key()`,
+  `lib/ad_client.APP_ID`, `lib/bulletin.app_id()` — pinned together in tests.
+- **Social card**: `scripts/make_social_card.py` → CDN
+  `cdn.2plot.ai/github_assets/muischeduler.2plot.dev.png` (1200×630). Upload is MANUAL
+  and gates deploy: og:image points at the CDN, so a 404 there fails
+  `social_card_real_pixels` in the live battery — deliberately.
+- **Internal traffic**: UAs carrying `2plot-internal` are dropped at write time in
+  `lib/analytics_tracker`; every outbound network call sends `internal_ua(caller)`.
+- **CI/CD**: `.github/workflows/ci.yml` (lint+actionlint, secretless pytest on
+  flask+fastapi, docker build→fingerprints→boot→battery, advisory pip-audit);
+  `cd.yml` owns main (sustained health, then `scripts/network_smoke.py` +
+  `scripts/smoke_live.py` against the live host). `markdown2dash` installs
+  `--no-deps` everywhere (its gunicorn<22 pin vs our >=23 floor).
+- **Tests are secretless by design** — `tests/conftest.py` pins every secret empty
+  before run.py imports; run `DASH_BACKEND=flask python -m pytest tests -q`.
 
 ## Run + verify recipe
 ```bash
@@ -70,6 +94,17 @@ In a sandbox that blocks sockets, render in-process instead:
 - The `.. kwargs::dash_mui_scheduler.<Component>` directive renders the prop table from the
   generated wrapper docstrings; `PROPS_TO_EXCLUDE` in `lib/constants.py` filters style props.
 - `MUI_X_LICENSE_KEY` flows to examples via `licenseKey` — never hard-code a license string.
+- **Host moves:** change `APP_BASE_URL` only — never a literal host in code/template. Order:
+  attach the domain in Render → DNS CNAME verified → confirm it serves → flip `APP_BASE_URL`
+  → set `CANONICAL_HOST_REDIRECT=1`. Flipping the redirect early strands every visitor.
+- **SEO/URLs:** `lib/constants.BASE_URL` (from `APP_BASE_URL`) is the ONLY source of absolute
+  URLs — canonical, `og:*`, sitemap, robots, llms, JSON-LD. `templates/index.html` uses
+  `__BASE_URL__` / `__PAGE_URL__` / `__VERSION__` tokens that `run.py` substitutes; never
+  hard-code a host there, and never add a static `description`/`og:*`/`twitter:*` tag (Dash
+  emits those per page from `register_page`). Dash replaces **every** occurrence of a
+  `{%…%}` placeholder — including inside HTML comments. Crawlers get
+  dash-improve-my-llms' own prerendered HTML, not the SPA shell; `run.py` patches canonical
+  and `og:image` into it.
 
 ## .claude/ scaffold
 - **`migration/`** — the 2plot network split packet (HANDOFF → MIGRATION-CHECKLIST →

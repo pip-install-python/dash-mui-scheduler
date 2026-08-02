@@ -41,7 +41,10 @@ from dash_iconify import DashIconify
 logger = logging.getLogger(__name__)
 
 AD_SERVER_URL = os.environ.get("AD_SERVER_URL", "https://2plot.dev").rstrip("/")
-APP_ID = os.environ.get("AD_APP_ID", "dash-mui-scheduler")
+# ONE short app id, network-wide: the directory key (the subdomain slug).
+# AD_APP_ID, SATELLITE_APP_KEY and bulletin app_id all converge on it —
+# tests/test_internal_traffic.py pins the three together.
+APP_ID = os.environ.get("AD_APP_ID", "muischeduler")
 
 _TIMEOUT = 2          # seconds per fetch — never stall a page view longer
 _COOLDOWN = 60        # seconds to skip fetches after a failure
@@ -63,10 +66,16 @@ def fetch_ad(page: str) -> dict | None:
         if time.time() - _last_failure < _COOLDOWN:
             return None
     try:
+        from lib.constants import internal_ua
+
         resp = _session.get(
             f"{AD_SERVER_URL}/api/ad-network/serve",
             params={"app": APP_ID, "page": page},
             timeout=_TIMEOUT,
+            # Internal-traffic contract: a bare python-requests UA would be
+            # classified as a bot by the hub's tracker, inflating its numbers
+            # with one fake bot hit per page view here.
+            headers={"User-Agent": internal_ua("ad-client")},
         )
         if resp.status_code == 200 and resp.content:
             return resp.json()

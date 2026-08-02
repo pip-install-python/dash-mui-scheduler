@@ -63,7 +63,7 @@ _DEFAULT_SATELLITE_ORIGINS = (
     "https://cast.2plot.net",
     "https://2plot.dev",   "https://2plot.me",
     "https://2plot.world", "https://2plot.shop",
-    # scheduler-docs origin added here once it has a domain
+    "https://muischeduler.2plot.dev",   # these docs
 )
 
 

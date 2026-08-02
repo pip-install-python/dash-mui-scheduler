@@ -1,0 +1,252 @@
+# CI for muischeduler.2plot.dev — the 2plot network baseline, adapted from
+# dash-documentation-boilerplate (see 2plot_leaflet and dash-email for the
+# same shape beside a wheel build).
+#
+#   * least-privilege `permissions`, cancel-in-progress `concurrency`;
+#   * explicit `timeout-minutes` on every job (the default is six hours);
+#   * actionlint first — an invalid workflow file dies with ZERO jobs and no
+#     failure signal, which is invisible for days;
+#   * a secretless in-process pytest suite — no CLERK_*, no
+#     CROSS_APP_WEBHOOK_SECRET — because fail-closed behaviour is only
+#     provable when nothing is configured;
+#   * the real Docker image, built, fingerprint-asserted INSIDE, BOOTED, then
+#     probed by the same battery that runs against production (LESSONS §19:
+#     CI green without a container boot is not a deploy gate);
+#   * an advisory pip-audit.
+
+name: CI
+
+# Deliberately NOT `push: branches: [main]` — cd.yml owns main and its first
+# job `uses:` this workflow, so a push trigger here would run everything twice
+# and the runs would cancel each other in the concurrency group.
+on:
+  pull_request:
+  workflow_dispatch:
+  # Called by cd.yml so a deploy can never ship something the matrix rejected.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  FORCE_COLOR: "1"
+  # Never let a CI run inherit production behaviour: the base-URL guard keys
+  # off RENDER / APP_ENV, and the traffic reporter keys off the webhook
+  # secret. Both must stay inert here.
+  APP_ENV: ci
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install flake8
+      - name: flake8
+        run: flake8 lib components pages tests scripts run.py
+
+      # The workflows lint themselves. An invalid workflow file is the one
+      # defect CI structurally cannot report — the run dies before a job
+      # exists to fail. A double quote inside ${{ }} silently killed every CI
+      # and CD run on the boilerplate for four days.
+      - name: actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color
+
+  test:
+    # SINGLE quotes inside ${{ }} — a double quote is a LEX error that
+    # invalidates the whole file with zero jobs scheduled.
+    name: py${{ matrix.python }} · ${{ matrix.backend }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both deployment-relevant backends on the current Python...
+        python: ["3.12"]
+        backend: [flask, fastapi]
+        include:
+          # ...and the supported Python range on the default backend.
+          - python: "3.11"
+            backend: flask
+          - python: "3.13"
+            backend: flask
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install the app
+        run: |
+          pip install -r requirements.txt
+          # markdown2dash 0.1.2 declares gunicorn<22 against the CVE-driven
+          # gunicorn>=23 floor. Same two-command install as the Dockerfile.
+          pip install --no-deps markdown2dash==0.1.2
+          # The component library itself — docs pages import dash_mui_scheduler.
+          pip install -e .
+          # httpx backs starlette's TestClient on the fastapi leg.
+          pip install pytest httpx
+
+      - name: Confirm the pinned dependency versions
+        run: |
+          python - <<'PY'
+          import dash, dash_improve_my_llms as pkg, gunicorn
+
+          def parts(v):
+              return tuple(int(x) for x in v.split(".")[:3] if x.isdigit())
+
+          assert parts(dash.__version__)[:2] >= (4, 2), dash.__version__
+          # 2.3.4 is the network standard: below it resolve_site_title does
+          # not exist and the published identity degrades to app.title.
+          assert parts(pkg.__version__) >= (2, 3, 4), pkg.__version__
+          # 21.x carried two request-smuggling CVEs (CVE-2024-6827,
+          # CVE-2024-1135). markdown2dash's spurious <22 pin must not win.
+          assert parts(gunicorn.__version__)[:2] >= (23, 0), gunicorn.__version__
+          print(f"dash {dash.__version__}, dash-improve-my-llms "
+                f"{pkg.__version__}, gunicorn {gunicorn.__version__}")
+          PY
+
+      # No CLERK_*, no CROSS_APP_WEBHOOK_SECRET, no SESSION_SECRET here ON
+      # PURPOSE. tests/conftest.py pins them empty; a secret injected here
+      # would make the suite pass for the wrong reason.
+      - name: Test suite (${{ matrix.backend }}, zero secrets)
+        env:
+          DASH_BACKEND: ${{ matrix.backend }}
+        run: pytest tests -q
+
+      - name: Boot under a production server
+        if: matrix.backend == 'flask'
+        run: |
+          DASH_BACKEND=flask gunicorn run:server -b 127.0.0.1:8598 --daemon --access-logfile - --error-logfile -
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8598/healthz && break
+            sleep 1
+          done
+          # A page that renders under the test client can still fail under a
+          # real WSGI worker — different import path, different CWD.
+          curl -sf http://127.0.0.1:8598/ > /dev/null
+          curl -sf http://127.0.0.1:8598/quickstart > /dev/null
+          # The battery, against the same server shape a satellite deploys.
+          python3 scripts/network_smoke.py --base-url http://127.0.0.1:8598
+
+  docker:
+    name: docker image · boot · battery
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      # The same build Render runs. A dependency-resolution failure surfaces
+      # here, at CI time — not at deploy time where the only signal is a
+      # dashboard log while the old image keeps serving.
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          tags: dash-mui-scheduler:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # pip metadata is invisible from outside a running host, so the
+      # versions are asserted here, inside the artifact that actually ships.
+      - name: Version fingerprints inside the image
+        run: |
+          docker run --rm dash-mui-scheduler:ci python -c "
+          from importlib.metadata import version
+
+          def parts(v):
+              return tuple(int(x) for x in v.split('.')[:3] if x.isdigit())
+
+          v = version('dash')
+          print('dash', v)
+          assert parts(v)[:2] >= (4, 2), f'expected dash >=4.2, image has {v}'
+
+          v = version('dash-improve-my-llms')
+          print('dash-improve-my-llms', v)
+          assert parts(v) >= (2, 3, 4), f'expected >=2.3.4 (resolve_site_title), image has {v}'
+
+          # markdown2dash installs with --no-deps to dodge its gunicorn<22
+          # pin; this assert proves the dodge kept working.
+          v = version('gunicorn')
+          print('gunicorn', v)
+          assert parts(v)[:2] >= (23, 0), f'expected gunicorn>=23, image has {v}'
+
+          # ...and that skipping its dependency graph did not skip the package.
+          import markdown2dash  # noqa: F401
+          print('markdown2dash importable')
+
+          # 0.9.0 ships a dead avatar chip on Clerk satellite domains.
+          v = version('dash-clerk-auth')
+          print('dash-clerk-auth', v)
+          assert parts(v) >= (0, 9, 1), f'expected dash-clerk-auth >=0.9.1, image has {v}'
+
+          import dash_mui_scheduler
+          print('dash_mui_scheduler', dash_mui_scheduler.__version__)
+          "
+
+      # Boot with no secrets: Clerk no-ops, the reporter stays dormant. What
+      # this catches is any import-time or preload crash — the class of
+      # failure where the platform loops the worker and the deploy never goes
+      # live (LESSONS §19).
+      - name: Boot the container and wait for /healthz
+        run: |
+          docker run -d --name docs -p 8598:8598 -e PORT=8598 dash-mui-scheduler:ci
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8598/healthz > /dev/null; then
+              echo "healthy after ~$((i*2))s"
+              exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' docs)" != "true" ]; then
+              echo "container exited during boot:"
+              docker logs docs
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "never became healthy; last logs:"
+          docker logs --tail 100 docs
+          exit 1
+
+      # The SAME script CD runs against https://muischeduler.2plot.dev, so a
+      # failure in CI and a failure in production read identically.
+      - name: Smoke battery against the booted container
+        run: python3 scripts/network_smoke.py --base-url http://127.0.0.1:8598
+
+      - name: Container logs (for the record)
+        if: always()
+        run: docker logs --tail 40 docs 2>/dev/null || true
+
+  pip-audit:
+    name: pip-audit (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Advisory on purpose: a CVE in a transitive dependency of a docs site is
+    # worth knowing the day it lands, and worth nobody's broken build at 2am.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      # Skip local vendor/ paths — pip-audit can only assess PyPI dists.
+      - run: |
+          grep -v '^vendor/' requirements.txt > /tmp/req-pypi.txt
+          pip-audit -r /tmp/req-pypi.txt --skip-editable

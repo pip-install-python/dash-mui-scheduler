@@ -1,6 +1,6 @@
 <div align="center">
 
-# Dash MUI Scheduler
+# dash-mui-scheduler — MUI X scheduling for Dash
 
 **Event calendar, resource timeline & radial chart components for [Plotly Dash](https://dash.plotly.com), wrapping the [MUI X Scheduler](https://mui.com/x/react-scheduler/).**
 
@@ -13,7 +13,7 @@ Drag & drop scheduling · recurrence · resources · timezones · automatic dark
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/WEnZR35mrK)
 [![YouTube](https://img.shields.io/badge/YouTube-%402plotai-FF0000?logo=youtube&logoColor=white)](https://www.youtube.com/channel/UC6Bmo0t0ZUpU_xKBYW0bJuQ)
 
-**[Documentation](https://pip-install-python.com)** · [Discord](https://discord.gg/WEnZR35mrK) · [YouTube](https://www.youtube.com/channel/UC6Bmo0t0ZUpU_xKBYW0bJuQ) · [GitHub](https://github.com/pip-install-python/dash-mui-scheduler)
+**[Documentation](https://muischeduler.2plot.dev)** · [Discord](https://discord.gg/WEnZR35mrK) · [YouTube](https://www.youtube.com/channel/UC6Bmo0t0ZUpU_xKBYW0bJuQ) · [GitHub](https://github.com/pip-install-python/dash-mui-scheduler)
 
 <br/>
 
@@ -94,15 +94,18 @@ if __name__ == "__main__":
 
 ## Documentation
 
-Full documentation, with a **live, editable demo and source for every example**, lives at the
-open-source documentation index maintained by Pip Install Python LLC:
+Full documentation, with a **live, editable demo and source for every example**:
 
-### 📚 **[pip-install-python.com](https://pip-install-python.com)**
+### 📚 **[muischeduler.2plot.dev](https://muischeduler.2plot.dev)**
+
+Part of the open-source documentation index maintained by Pip Install Python LLC at
+[pip-install-python.com](https://pip-install-python.com).
 
 You can also run the docs site locally — it is a markdown-driven Dash app served by `run.py`:
 
 ```bash
 pip install -r requirements.txt
+pip install --no-deps markdown2dash==0.1.2   # its gunicorn<22 pin conflicts with our >=23 floor
 pip install -e .          # install the built components
 python run.py             # open http://localhost:8560
 ```
@@ -229,6 +232,7 @@ The full, auto-generated prop tables are on each component's documentation page.
 # Install dependencies
 npm install                 # @mui/x-scheduler + build toolchain
 pip install -r requirements.txt
+pip install --no-deps markdown2dash==0.1.2   # see requirements.txt for why
 
 # Build the JS bundle + regenerate the Python wrappers
 npm run build               # webpack bundle + dash-generate-components → dash_mui_scheduler/*.py

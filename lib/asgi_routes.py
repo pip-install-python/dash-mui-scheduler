@@ -51,6 +51,7 @@ class PageListResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     ok: bool = True
+    app: str = ""
     backend: str
     dash_version: str
 
@@ -102,8 +103,11 @@ def build_health_router() -> APIRouter:
 
     @router.get("/healthz", response_model=HealthResponse, summary="Liveness probe")
     def healthz() -> HealthResponse:
+        from lib.traffic_report import app_key
+
         return HealthResponse(
             ok=True,
+            app=app_key(),
             backend="fastapi",
             dash_version=dash.__version__,
         )

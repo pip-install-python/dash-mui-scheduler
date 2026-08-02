@@ -6,7 +6,19 @@ matches no registered page: a typo or a stale link. Plain DMC — no game assets
 import dash_mantine_components as dmc
 from dash import register_page
 
-register_page(__name__, path="/404", title="Page not found · dash-mui-scheduler")
+from lib.constants import OG_IMAGE_URL, PAGE_TITLE_PREFIX
+
+register_page(
+    __name__,
+    path="/404",
+    name="Page not found",
+    title=PAGE_TITLE_PREFIX + "Page not found",
+    # Every register_page needs description= and image_url=: one missing and
+    # Dash emits an empty og tag — and the empty tag, later in document order,
+    # is the one scrapers take (network standard).
+    description="The page you were looking for isn't on the calendar.",
+    image_url=OG_IMAGE_URL,
+)
 
 ACCENT = "#3399ff"
 
