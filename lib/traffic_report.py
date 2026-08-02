@@ -58,7 +58,16 @@ logger = logging.getLogger(__name__)
 
 HUB_TRAFFIC_URL = os.environ.get(
     "HUB_TRAFFIC_URL", "https://2plot.ai/api/satellite/traffic")
-APP_KEY = os.environ.get("SATELLITE_APP_KEY", "scheduler")
+
+
+def app_key() -> str:
+    """This app's ONE short id on every hub surface: its network-directory
+    key, the subdomain slug. AD_APP_ID and bulletin app_id converge on the
+    same value (tests/test_internal_traffic.py pins them together)."""
+    return os.environ.get("SATELLITE_APP_KEY") or "muischeduler"
+
+
+APP_KEY = app_key()
 
 SESSION_GAP_MIN = 30          # the hub's session rule — keep it identical
 _TIMEOUT = 10                 # seconds per POST
@@ -217,9 +226,14 @@ def post_rollup(rollup: dict) -> bool:
     sig = hmac.new(secret.encode(), f"{ts}.".encode() + body,
                    hashlib.sha256).hexdigest()
     try:
+        from lib.constants import internal_ua
+
         resp = requests.post(
             HUB_TRAFFIC_URL, data=body, timeout=_TIMEOUT,
             headers={"Content-Type": "application/json",
+                     # Internal-traffic contract: the hub must never count
+                     # this machinery POST as a visit or a bot hit.
+                     "User-Agent": internal_ua("traffic-report"),
                      "X-AI-Canvas-Timestamp": ts,
                      "X-AI-Canvas-Signature": sig})
     except Exception as exc:

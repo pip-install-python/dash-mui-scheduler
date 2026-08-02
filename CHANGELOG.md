@@ -10,10 +10,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-01
+
 ### Added
+- **The docs site is now on the 2plot network standard**, the baseline proven on
+  2plot.ai, 2plot.dev and the other satellite documentation sites:
+  - **A test suite and CI/CD pipeline, from zero.** Every pull request now runs a
+    secretless test suite on both the Flask and FastAPI builds, lints the code and
+    the workflows themselves, builds the real production image, checks the shipped
+    dependency versions inside it, boots it, and runs the same smoke battery that
+    later checks the live site. Merging to `main` deploys and then verifies the
+    live domain — waiting for *sustained* health before calling the deploy good.
+  - **One identity on every surface.** The site now states what it is —
+    *dash-mui-scheduler — MUI X scheduling for Dash* — identically in the browser
+    tab, in search results, in shared-link previews, in the machine-readable
+    `/llms.txt` index, in its app manifest and atop the README, and a test pins
+    each surface so none of them can silently drift.
+  - **A proper share card.** Links shared to Slack, Discord, X or LinkedIn will
+    unfurl with a purpose-drawn 1200×630 card served from the network CDN (so a
+    sleeping free-tier container never blanks a preview) instead of an upscaled
+    favicon.
+  - **The network bulletin.** The hub's tips and announcements now render in the
+    documentation's llms.txt viewer once `NETWORK_BULLETIN_URL` is set on the
+    service, so network-wide news reaches this site's readers without a deploy.
+  - **Honest analytics.** The network's own machinery — health sweeps, smoke
+    batteries, this site's calls to the hub — now identifies itself and is
+    dropped from visitor analytics before it is ever written down — however the
+    marker is capitalised — and every
+    outbound call this site makes carries the same marker for the far side. The
+    site reports to the hub under its one short id, `muischeduler`, everywhere.
+  - `/healthz` on every backend (previously FastAPI-only), answering the hub's
+    hourly health sweep and gating deploys.
+  - **The cross-host network directory** — `/llms.txt` now lists the sibling
+    documentation sites and the hub, so an agent landing here can discover the
+    rest of the network.
+
 - **Walkthrough video** — a video tour of the calendar, resource timeline, and
-  radial charts now sits near the top of the Quickstart page, and the README
-  header carries a clickable thumbnail linking to the same walkthrough.
+  radial charts now sits near the top of the Quickstart page **and on the
+  documentation home page**, so a reader landing on the docs can watch it
+  without going to GitHub first. The README header carries a clickable
+  thumbnail linking to the same walkthrough. Both embeds use YouTube's
+  no-cookie player, so nothing is set until you press play.
+- **Richer search-result data** — the site now describes itself to search
+  engines as what it is: an MIT-licensed Python source library with a
+  repository, a PyPI download page, a version number read straight from the
+  package, and the walkthrough video attached.
 - **The docs site now reports its traffic to 2plot.ai**, the analytics home for
   the whole 2plot network. Once an hour it sends a signed daily rollup — page
   hits split human/bot, unique visitors, sessions, median session length, top
@@ -22,7 +63,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   network secret is configured; without it the site behaves exactly as before
   and makes no outbound calls.
 
+### Changed
+- **Fresher, safer dependencies.** The AI/SEO layer (`dash-improve-my-llms`) now
+  installs from PyPI at ≥ 2.3.4 instead of a vendored 2.0.0 snapshot; the
+  `gunicorn` web server is floored at ≥ 23 (clearing two request-smuggling
+  CVEs its old pin was stuck on); and the optional Clerk auth package moves to
+  0.9.1, the release that fixes the account chip on satellite domains.
+- **The documentation has its own home: [muischeduler.2plot.dev](https://muischeduler.2plot.dev).**
+  Everything the site publishes about itself — search-engine addresses, shared-link previews,
+  the sitemap, the machine-readable pages — now points there, and the README and the PyPI
+  listing send readers to the docs rather than back to the repository. The old
+  `onrender.com` address keeps working and forwards to the new one, so existing links and
+  bookmarks survive the move and search engines are told where the pages went.
+
 ### Fixed
+- **Search engines were being told this site is a copy of a site that does not
+  exist.** The page template still carried the URL it was built with
+  (`dash-mui-scheduler.onrender.com`) rather than the address the docs actually
+  live at, and it claimed that one address for all 17 pages at once — the
+  fastest way for a site to fall out of the index entirely. Every page now
+  declares its own correct address, kept in step as you navigate, and every
+  link the site publishes about itself is built from a single setting.
+- **Every page was announcing itself as the home page.** The template carried
+  its own copy of the title, description and social tags, which overrode the
+  per-page ones — so a search result or shared link for, say, *Recurrence*
+  showed the site blurb instead of the page's. The per-page text now wins
+  everywhere, including for search-engine and link-preview crawlers, and shared
+  links unfurl with the project logo and the right page's title.
 - **Visitor counts and countries are now measured at the edge, not at the
   proxy.** Behind Render/Cloudflare every request looked like it came from the
   same address, which collapsed all visitors into one and mislabelled where

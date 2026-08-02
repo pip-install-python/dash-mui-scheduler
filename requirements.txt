@@ -17,26 +17,36 @@ dash-mantine-components>=2.7.0
 # hooks no-op: unauthenticated, $0, no network, no session files). MUST be
 # installed WITH dependency resolution (never --no-deps: dash auto-imports the
 # package via its [dash_hooks] entry point, so a broken transitive dep crashes
-# every Dash() construction app-wide).
-vendor/dash_clerk_auth-0.9.0.tar.gz
+# every Dash() construction app-wide). 0.9.1 floor: 0.9.0 ships a dead avatar
+# chip on Clerk SATELLITE domains, and this host becomes one at flip-on.
+vendor/dash_clerk_auth-0.9.1.tar.gz
 svix>=1.45.0          # Clerk webhook signature verification (POST /webhooks/clerk)
 
-# 2plot.dev ad-network client (lib/ad_client.py)
+# 2plot.dev ad-network client (lib/ad_client.py) + the hub traffic reporter
 requests>=2.27.1
 
-# Documentation rendering
+# Documentation rendering.
+# markdown2dash is NOT listed here: 0.1.2 pins gunicorn>=21.2.0,<22.0.0,
+# which is unresolvable against the CVE-driven gunicorn>=23 floor below. It
+# is installed `pip install --no-deps markdown2dash==0.1.2` at every install
+# site (Dockerfile, ci.yml) and its real dependencies are pinned here
+# instead — with ranges, because --no-deps removes the resolver:
+mistune>=3.0.0
 python-frontmatter>=1.0.0
-markdown2dash
 pydantic>=2.3.0
 python-dotenv>=1.0.0
+# markdown2dash==0.1.2        <- installed --no-deps, see above
 
-# AI/LLM integration & SEO.
-# dash-improve-my-llms 2.0 is not yet on PyPI (PyPI publishes up to 1.x only),
-# so it is vendored as an sdist in this repo. Install it with:
-#   pip install vendor/dash_improve_my_llms-2.0.0.tar.gz
-# (the Dockerfile does this automatically).
+# AI/LLM integration & SEO — from PyPI (the vendored 2.0.0 sdist is retired).
+# 2.3.4 floor is the network standard: it brings resolve_site_title (the
+# /llms.txt H1 + viewer brand chip); 2.3.3 fixed the Anthropic bot taxonomy
+# and directive stripping. Both backend extras: prod runs fastapi
+# (render.yaml), CI and local dev also run flask.
+dash-improve-my-llms[flask,fastapi]>=2.3.4
 
-# Production servers. uvicorn >=0.49 is required for `--ws websockets-sansio`
-# (the Dockerfile CMD depends on it).
-gunicorn>=21.2.0
+# Production servers. gunicorn>=23: 21.x carried two request-smuggling CVEs
+# (CVE-2024-6827, CVE-2024-1135) — that floor is why markdown2dash installs
+# --no-deps. uvicorn >=0.49 is required for `--ws websockets-sansio` (the
+# Dockerfile CMD depends on it).
+gunicorn>=23.0.0
 uvicorn[standard]>=0.49.0

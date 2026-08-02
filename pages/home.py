@@ -3,19 +3,20 @@ import dash_mantine_components as dmc
 from dash import register_page, html
 from dash_iconify import DashIconify
 
+from lib.constants import OG_IMAGE_URL, PAGE_TITLE_PREFIX, SITE_DESCRIPTION
+
 register_page(
     __name__,
     path="/",
-    title="dash-mui-scheduler — MUI X Scheduler for Plotly Dash",
-    description=(
-        "A Plotly Dash wrapper for the MUI X Scheduler: EventCalendar, "
-        "EventCalendarPremium and EventTimeline plus the RadialLineChart and "
-        "RadialBarChart polar charts, "
-        "with recurrence, drag & resize, resources, timezones and theming."
-    ),
+    name="Home",
+    title=PAGE_TITLE_PREFIX + "Home",
+    description=SITE_DESCRIPTION,
+    # Pins og:image/twitter:image to the CDN card (see lib/constants).
+    image_url=OG_IMAGE_URL,
 )
 
 ACCENT = "#3399ff"
+VIDEO_ID = "i-CZH7W5ZsA"
 
 _FEATURES = [
     ("tabler:calendar-event", "Event Calendar",
@@ -31,6 +32,67 @@ _FEATURES = [
      "Locale packs, week-start control, and timezone-aware rendering out of "
      "the box.", "/localization"),
 ]
+
+
+def _walkthrough():
+    """The walkthrough video, embedded on the landing page.
+
+    Same tour that the README links as a thumbnail and that Quickstart embeds —
+    here so a reader hitting the docs can watch it without leaving for GitHub.
+    Responsive 16:9: the outer box caps the width, the padding-bottom trick
+    holds the ratio at any screen size. youtube-nocookie keeps the landing page
+    from setting tracking cookies before anyone presses play.
+    """
+    return dmc.Stack(
+        [
+            dmc.Group(
+                [
+                    dmc.Title("Watch the walkthrough", order=3),
+                    dmc.Anchor(
+                        dmc.Group(
+                            [DashIconify(icon="tabler:brand-youtube", width=18),
+                             dmc.Text("Open on YouTube", size="sm")],
+                            gap=6, align="center",
+                        ),
+                        href=f"https://youtu.be/{VIDEO_ID}",
+                        target="_blank", underline="hover",
+                    ),
+                ],
+                justify="space-between", align="center", wrap="nowrap",
+            ),
+            dmc.Text(
+                "A tour of the event calendar, the resource timeline, and the "
+                "radial charts.",
+                size="sm", c="dimmed",
+            ),
+            html.Div(
+                html.Iframe(
+                    src=f"https://www.youtube-nocookie.com/embed/{VIDEO_ID}",
+                    title="dash-mui-scheduler walkthrough",
+                    style={
+                        "position": "absolute",
+                        "top": 0,
+                        "left": 0,
+                        "width": "100%",
+                        "height": "100%",
+                        "border": 0,
+                        "borderRadius": "8px",
+                    },
+                    allow=(
+                        "accelerometer; autoplay; clipboard-write; encrypted-media; "
+                        "gyroscope; picture-in-picture; web-share; fullscreen"
+                    ),
+                ),
+                style={
+                    "position": "relative",
+                    "paddingBottom": "56.25%",  # 16:9
+                    "height": 0,
+                    "overflow": "hidden",
+                },
+            ),
+        ],
+        gap="xs", mb="xl", style={"maxWidth": 820, "margin": "0 auto"},
+    )
 
 
 def _feature_card(icon, title, body, href):
@@ -80,6 +142,7 @@ def layout(**kwargs):
                 ],
                 gap="lg", py="xl",
             ),
+            _walkthrough(),
             dmc.SimpleGrid(
                 [_feature_card(*f) for f in _FEATURES],
                 cols={"base": 1, "sm": 2}, spacing="lg", mb="xl",

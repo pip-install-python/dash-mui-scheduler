@@ -1,0 +1,26 @@
+[flake8]
+# Line length is not policed: this repo's comments carry a lot of explanation
+# and reflowing them to 79 columns would make them harder to read, not easier.
+max-line-length = 120
+extend-ignore = E203, W503, E501
+exclude =
+    .git,
+    .venv,
+    venv,
+    __pycache__,
+    node_modules,
+    vendor,
+    dist,
+    build,
+    .idea,
+    dash_mui_scheduler,
+    src,
+    docs/*/,
+per-file-ignores =
+    # run.py's wiring is ordered on purpose: load_dotenv() and the backend
+    # resolution must precede first-party imports, and the reporter/bulletin
+    # imports sit after the app is fully wired.
+    run.py: E402
+    usage.py: E402
+    # pytest fixtures look like shadowed names to flake8
+    tests/*: F811

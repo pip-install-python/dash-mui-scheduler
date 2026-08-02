@@ -1,79 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- FIRST, deliberately: Dash renders charset + viewport + X-UA-Compatible
+         here (it adds them automatically when the app config doesn't), and the
+         charset declaration has to land inside the document's first 1024 bytes.
+         Declaring them in this file as well produced a duplicate charset (an
+         HTML validity error), so they live only in Dash's block. This is also
+         where the per-page description/og/twitter tags land. -->
+    {%metas%}
 
-    <!-- Primary meta tags -->
-    <title>dash-mui-scheduler — MUI X Scheduler for Plotly Dash</title>
-    <meta name="title" content="dash-mui-scheduler — MUI X Scheduler for Plotly Dash">
-    <meta name="description" content="A Plotly Dash wrapper for the MUI X Scheduler: EventCalendar, EventCalendarPremium and EventTimeline plus the RadialLineChart and RadialBarChart polar charts — recurrence, drag & resize, resources, timezones and theming, documented with live examples.">
+    <!-- ========================================================================
+         SEO NOTE — what belongs here and what MUST NOT.
+
+         This one document serves EVERY route (Dash is an SPA), so anything
+         static in here is a claim about all 17 pages at once.
+
+         * Per-page tags (description, og:title/type/description/image and the
+           whole twitter:* set) are emitted by Dash at the metas placeholder
+           above, from each register_page() call — see
+           dash/_pages.py:_page_meta_tags. Do NOT add static copies: they would
+           describe the SITE on every PAGE, and the duplicate would sort first
+           and win. (Never write the placeholder's literal name in a comment
+           either — Dash substitutes EVERY occurrence, comments included.)
+         * Only og:site_name and og:url are absent from Dash's set, so they
+           live here.
+         * Anything URL-shaped is written with the __BASE_URL__ token, which
+           run.py substitutes from APP_BASE_URL (lib/constants.BASE_URL). Never
+           hard-code a host here: this template shipped carrying a host that
+           did not exist, and later the site moved to its own domain — a
+           hard-coded value would have been wrong both times.
+         * canonical / og:url are filled per REQUEST by run.py's index hook, and
+           canonical / og:url / twitter:url are re-patched per ROUTE by the
+           script below — a static value would be right for exactly one page.
+         ===================================================================== -->
+
+    <title>dash-mui-scheduler — MUI X scheduling for Dash</title>
     <meta name="keywords" content="dash-mui-scheduler, MUI X Scheduler, Plotly Dash, event calendar, timeline, radial charts, Dash components">
     <meta name="author" content="Pip Install Python LLC">
     <meta name="robots" content="index, follow">
-    <meta name="language" content="English">
 
-    <!-- Open Graph -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://dash-mui-scheduler.onrender.com/">
-    <meta property="og:title" content="dash-mui-scheduler — MUI X Scheduler for Plotly Dash">
-    <meta property="og:description" content="The MUI X Scheduler — event calendar, timeline, and radial charts — as native Plotly Dash components.">
-    <meta property="og:site_name" content="dash-mui-scheduler">
-    <meta property="og:image" content="https://dash-mui-scheduler.onrender.com/assets/favicon/android-chrome-512x512.png">
+    <!-- Open Graph — ONLY the tags Dash does not emit per page. __PAGE_URL__
+         is the REQUESTED page's canonical URL, filled per request by the index
+         hook in run.py (and by lib/social_cards for scrapers); the script below
+         then keeps it right across client-side navigation. The og:image:*
+         auxiliaries describe the CDN card each register_page's image_url=
+         points at; tests/test_social_card.py pins them to lib/constants'
+         OG block, and scripts/smoke_live.py checks the real file's pixels
+         against them after every deploy. -->
+    <meta property="og:site_name" content="dash-mui-scheduler — MUI X scheduling for Dash">
+    <meta property="og:url" content="__PAGE_URL__">
+    <meta property="og:image:secure_url" content="https://cdn.2plot.ai/github_assets/muischeduler.2plot.dev.png">
     <meta property="og:image:type" content="image/png">
-    <meta property="og:image:width" content="512">
-    <meta property="og:image:height" content="512">
-    <meta property="og:image:alt" content="dash-mui-scheduler logo">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="dash-mui-scheduler — MUI X scheduling for Dash">
+    <meta property="twitter:image:alt" content="dash-mui-scheduler — MUI X scheduling for Dash">
 
-    <!-- Twitter — summary (square image); switch back to summary_large_image once a
-         dedicated 1200x630 social card exists (see .claude/docs/launch plan). -->
-    <meta property="twitter:card" content="summary">
-    <meta property="twitter:url" content="https://dash-mui-scheduler.onrender.com/">
-    <meta property="twitter:title" content="dash-mui-scheduler — MUI X Scheduler for Plotly Dash">
-    <meta property="twitter:description" content="The MUI X Scheduler — event calendar, timeline, and radial charts — as native Plotly Dash components.">
-    <meta property="twitter:image" content="https://dash-mui-scheduler.onrender.com/assets/favicon/android-chrome-512x512.png">
-    <meta property="twitter:image:alt" content="dash-mui-scheduler logo">
+    <link rel="canonical" href="__PAGE_URL__">
 
-    <!-- Favicons (assets/favicon/) -->
-    <link rel="icon" type="image/x-icon" href="/assets/favicon/favicon.ico">
+    <!-- Favicons (assets/favicon/). The .ico is NOT listed here — Dash's
+         favicon placeholder already emits it, cache-busted. -->
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon/favicon-16x16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon/apple-touch-icon.png">
+    <link rel="manifest" href="/assets/favicon/site.webmanifest">
     <meta name="theme-color" content="#3399ff">
-    <link rel="canonical" href="https://dash-mui-scheduler.onrender.com">
 
-    <!-- Structured data -->
+    <!-- Structured data. The docs site (WebSite) and the thing it documents
+         (SoftwareSourceCode — this is a source library on PyPI, not a hosted
+         app). __VERSION__ is substituted from package.json so it cannot drift. -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "dash-mui-scheduler",
-        "description": "A Plotly Dash wrapper for the MUI X Scheduler: event calendar, timeline, and radial chart components with live documentation.",
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Any",
-        "author": {"@type": "Organization", "name": "Pip Install Python LLC"}
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": "__BASE_URL__/#website",
+                "name": "dash-mui-scheduler documentation",
+                "url": "__BASE_URL__/",
+                "publisher": {"@id": "__BASE_URL__/#publisher"}
+            },
+            {
+                "@type": "Organization",
+                "@id": "__BASE_URL__/#publisher",
+                "name": "Pip Install Python LLC",
+                "url": "https://pip-install-python.com"
+            },
+            {
+                "@type": "SoftwareSourceCode",
+                "name": "dash-mui-scheduler",
+                "description": "A Plotly Dash wrapper for the MUI X Scheduler: EventCalendar, EventCalendarPremium and EventTimeline plus the RadialLineChart and RadialBarChart polar charts — recurrence, drag & resize, resources, timezones and theming.",
+                "url": "__BASE_URL__/",
+                "codeRepository": "https://github.com/pip-install-python/dash-mui-scheduler",
+                "downloadUrl": "https://pypi.org/project/dash-mui-scheduler/",
+                "programmingLanguage": ["Python", "JavaScript"],
+                "runtimePlatform": "Python 3.8+ / Dash 2.11+",
+                "applicationCategory": "DeveloperApplication",
+                "license": "https://opensource.org/licenses/MIT",
+                "version": "__VERSION__",
+                "author": {"@id": "__BASE_URL__/#publisher"},
+                "video": {
+                    "@type": "VideoObject",
+                    "name": "dash-mui-scheduler walkthrough",
+                    "description": "A tour of the event calendar, the resource timeline, and the radial charts.",
+                    "thumbnailUrl": "https://img.youtube.com/vi/i-CZH7W5ZsA/maxresdefault.jpg",
+                    "embedUrl": "https://www.youtube.com/embed/i-CZH7W5ZsA",
+                    "uploadDate": "2026-07-16"
+                }
+            }
+        ]
     }
     </script>
 
     <!-- LLM discovery -->
-    <meta name="llms-txt" content="https://dash-mui-scheduler.onrender.com/llms.txt">
+    <meta name="llms-txt" content="__BASE_URL__/llms.txt">
     <meta name="llms-github-repo" content="https://github.com/pip-install-python/dash-mui-scheduler">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <!-- Required by Dash — do not modify -->
-    {%metas%}
+    <!-- Per-route canonical. Dash routes client-side and fires no navigation
+         event, so history.pushState/replaceState are patched to sync on every
+         route change. The origin is pinned to __BASE_URL__ (not location.origin)
+         so hits on any other host — a preview deploy, a future custom domain's
+         old URL — consolidate onto the canonical one instead of competing with
+         it. twitter:url is included because Dash bakes the REQUEST url into it
+         server-side, which goes stale the moment you navigate. -->
+    <script>
+    (function () {
+        var ORIGIN = "__BASE_URL__";
+
+        function head(selector, create) {
+            var el = document.head.querySelector(selector);
+            if (!el) {
+                el = create();
+                document.head.appendChild(el);
+            }
+            return el;
+        }
+
+        function sync() {
+            var path = window.location.pathname.replace(/\/+$/, "");
+            var url = ORIGIN + (path || "/");
+
+            head('link[rel="canonical"]', function () {
+                var l = document.createElement("link");
+                l.setAttribute("rel", "canonical");
+                return l;
+            }).setAttribute("href", url);
+
+            ["og:url", "twitter:url"].forEach(function (prop) {
+                head('meta[property="' + prop + '"]', function () {
+                    var m = document.createElement("meta");
+                    m.setAttribute("property", prop);
+                    return m;
+                }).setAttribute("content", url);
+            });
+        }
+
+        ["pushState", "replaceState"].forEach(function (fn) {
+            var original = window.history[fn];
+            window.history[fn] = function () {
+                var result = original.apply(this, arguments);
+                sync();
+                return result;
+            };
+        });
+        window.addEventListener("popstate", sync);
+
+        sync();
+    })();
+    </script>
+
+    <!-- Required by Dash — do not modify. (The metas block sits at the top of
+         the head, see the note there.) -->
     {%favicon%}
     {%css%}
 
     <noscript>
         <div style="padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 0 auto; line-height: 1.6;">
             <h1>dash-mui-scheduler</h1>
-            <p><strong>This documentation site requires JavaScript.</strong></p>
+            <p>A Plotly Dash wrapper for the MUI X Scheduler — <code>EventCalendar</code>,
+               <code>EventCalendarPremium</code> and <code>EventTimeline</code>, plus the
+               <code>RadialLineChart</code> and <code>RadialBarChart</code> polar charts.
+               MIT licensed; <code>pip install dash-mui-scheduler</code>.</p>
+            <p><strong>The interactive documentation requires JavaScript.</strong></p>
             <p>For an LLM-friendly overview of the project, see
                <a href="/llms.txt" style="color: #3399ff;">/llms.txt</a> or any page's
-               <code>&lt;page&gt;/llms.txt</code> endpoint.</p>
+               <code>&lt;page&gt;/llms.txt</code> endpoint. Source and issues live on
+               <a href="https://github.com/pip-install-python/dash-mui-scheduler" style="color: #3399ff;">GitHub</a>.</p>
+            <p>Video walkthrough:
+               <a href="https://youtu.be/i-CZH7W5ZsA" style="color: #3399ff;">youtu.be/i-CZH7W5ZsA</a></p>
         </div>
     </noscript>
 </head>

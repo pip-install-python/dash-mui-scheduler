@@ -5,7 +5,9 @@ from dash import html
 component = html.Div(
     html.Div(
         html.Iframe(
-            src="https://www.youtube.com/embed/i-CZH7W5ZsA",
+            # youtube-nocookie, matching the landing-page embed (pages/home.py):
+            # no tracking cookies are set until the reader presses play.
+            src="https://www.youtube-nocookie.com/embed/i-CZH7W5ZsA",
             title="dash-mui-scheduler walkthrough",
             style={
                 "position": "absolute",

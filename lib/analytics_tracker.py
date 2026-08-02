@@ -11,7 +11,6 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime
-import re
 import requests
 from functools import lru_cache
 
@@ -149,6 +148,10 @@ class AnalyticsTracker:
     @lru_cache(maxsize=1000)
     def get_geolocation(self, ip_address):
         """Get geolocation data from IP address using ip-api.com (free service)."""
+        # Tests and CI must never depend on a third-party geo API being up.
+        if os.getenv("ANALYTICS_GEO_LOOKUP", "1") == "0":
+            return None
+
         # Skip local/private IPs
         if not ip_address or ip_address in ['127.0.0.1', 'localhost', '::1']:
             return None
@@ -190,6 +193,19 @@ class AnalyticsTracker:
         """Track a visitor. auth_name (the verified Clerk display name, when the
         caller resolved one) stamps the hit as authenticated. country is the
         edge-supplied CF-IPCountry code, when the request carried one."""
+        # The network's internal-traffic contract: hub health sweeps, CI smoke
+        # batteries and satellite-to-satellite calls identify themselves with
+        # INTERNAL_UA_TOKEN in the User-Agent. Dropped at WRITE time — before
+        # device detection and before bot classification — so machinery talking
+        # to itself never reaches the ledger the hourly rollup is built from.
+        from lib.constants import INTERNAL_UA_TOKEN
+        if user_agent and INTERNAL_UA_TOKEN.lower() in user_agent.lower():
+            return
+
+        # /healthz is a liveness probe, never a visit.
+        if path.startswith('/healthz'):
+            return
+
         # Skip internal Dash paths and static assets
         skip_paths = [
             '.css', '.js', '.png', '.jpg', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot',
@@ -241,7 +257,7 @@ class AnalyticsTracker:
         try:
             with open(self.data_file, 'r') as f:
                 data = json.load(f)
-        except:
+        except Exception:
             data = {"visits": [], "stats": {"desktop": 0, "mobile": 0, "tablet": 0, "bot": 0, "total": 0}}
 
         # Add visit

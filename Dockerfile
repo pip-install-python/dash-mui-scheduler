@@ -7,6 +7,14 @@
 # and committing the regenerated artifacts (the image no longer self-builds).
 FROM python:3.12-slim
 
+# PYTHONUNBUFFERED is load-bearing: without it Python block-buffers stdout to
+# the pipe and NONE of the boot diagnostics (bulletin wired/off, traffic
+# reporter state, backend banner) ever reach Render's log stream.
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 WORKDIR /app
 
 RUN pip install --no-cache-dir --upgrade pip
@@ -17,8 +25,11 @@ COPY requirements.txt .
 COPY vendor/ ./vendor/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# dash-improve-my-llms 2.0 is not on PyPI yet — install the vendored sdist.
-RUN pip install --no-cache-dir "vendor/dash_improve_my_llms-2.0.0.tar.gz"
+# markdown2dash 0.1.2 pins gunicorn>=21.2,<22 — stuck on two request-smuggling
+# CVEs against our gunicorn>=23 floor. --no-deps dodges the pin; its real
+# dependencies (mistune, frontmatter, pydantic) are in requirements.txt. CI
+# asserts gunicorn>=23 INSIDE this image to keep the dodge honest.
+RUN pip install --no-cache-dir --no-deps markdown2dash==0.1.2
 
 COPY . .
 RUN pip install --no-cache-dir -e .

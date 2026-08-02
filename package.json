@@ -1,6 +1,6 @@
 {
   "name": "dash_mui_scheduler",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dash components wrapping MUI X Scheduler — Event Calendar (Community & Premium) and Event Timeline",
   "main": "build/index.js",
   "repository": {
