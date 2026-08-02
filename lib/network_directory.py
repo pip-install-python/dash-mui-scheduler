@@ -108,12 +108,10 @@ PEERS: List[Dict[str, str]] = [
     # NXDOMAIN as of 2026-07-31 — see the note above.
 ]
 
+# DIVERGENCE FROM the upstream copy (2026-08-02, owner decision): the
+# pip-install-python.com entry is dropped — that domain is retired in favor of
+# 2plot.dev, which is already listed in PEERS above. Fix upstream when touched.
 AFFILIATED: List[Dict[str, str]] = [
-    {
-        "name": "Pip Install Python",
-        "url": "https://pip-install-python.com",
-        "description": "The original component documentation site.",
-    },
     {
         "name": "Pirate's Bargain",
         "url": "https://piratesbargain.com",
