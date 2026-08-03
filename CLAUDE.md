@@ -35,7 +35,10 @@ The React sources live in `src/lib/components/`; the **built bundle + generated 
 are COMMITTED** (`dash_mui_scheduler/*.min.js` + `*.py`), so `pip install -e .` works without
 npm. Changing anything under `src/` requires `npm install && npm run build` and committing the
 regenerated artifacts. `setup.py` reads `package.json` for the version — keep them in sync
-(currently 0.1.1; PyPI publish is an owner step in `.claude/migration/OWNER-ACTIONS.md`).
+(currently 1.0.0). **PyPI publishing is tag-driven** — push a `v*` tag and
+`.github/workflows/release.yml` verifies, tests, builds, gates and publishes via OIDC trusted
+publishing; see `RELEASING.md`. (PyPI holds 0.1.0, uploaded by hand before that existed; 0.1.1
+shipped to the docs site only.)
 
 ## Layout
 - `dash_mui_scheduler/` — the built package (5 wrappers + bundles). `src/lib/` — React sources.

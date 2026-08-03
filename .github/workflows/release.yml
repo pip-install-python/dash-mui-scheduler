@@ -1,0 +1,256 @@
+name: Release
+
+# Tag-driven publish. Push a v* tag and this verifies, runs the full CI matrix
+# against the tagged commit, builds, gates the artifacts, publishes to PyPI via
+# OIDC trusted publishing, and opens a GitHub Release.
+#
+# NO API TOKEN IS STORED ANYWHERE. Trusted publishing has PyPI verify a
+# short-lived OIDC token minted by GitHub for this specific repo + workflow +
+# environment, so there is no long-lived secret to leak or rotate. The
+# publisher is configured on PyPI (added 2026-08-03) as:
+#     Owner:            pip-install-python
+#     Repository:       dash-mui-scheduler   <- must match the GitHub repo
+#                                               name EXACTLY; OIDC claims do
+#                                               not follow rename redirects
+#     Workflow name:    release.yml
+#     Environment name: pypi
+#
+# The version lives in package.json (setup.py reads it) — NOT pyproject.toml,
+# which carries only the build-system table. The component bundle
+# (dash_mui_scheduler/*.min.js) is committed to git, so the build needs no
+# Node toolchain.
+#
+# Same conventions as ci.yml/cd.yml: least-privilege `permissions`, a
+# `concurrency` group, and an explicit `timeout-minutes` on every job (the
+# default is six hours).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and verify, but publish to TestPyPI instead of PyPI"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never cancel a release mid-upload: a PyPI version can only be uploaded
+  # once, so a half-finished publish is unrecoverable.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  FORCE_COLOR: "1"
+
+jobs:
+  verify:
+    name: Verify the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Needed for the ancestry check below.
+          fetch-depth: 0
+
+      - name: Tag must match the version in package.json
+        # Catches the classic release mistake: bumping the code but tagging
+        # the old number (or the reverse). PyPI would accept the mismatch.
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG_VER=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
+          echo "tag=$TAG  package.json=$PKG_VER"
+          if [ "$TAG" != "$PKG_VER" ]; then
+            echo "::error::Tag v$TAG does not match package.json version $PKG_VER"
+            exit 1
+          fi
+
+      - name: Tag must point at a commit that is on main
+        # A PyPI upload is irreversible. Refuse to publish from a commit that
+        # never landed on main — a tag on a stale branch or a local experiment
+        # would otherwise ship straight to users.
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # Compare against FETCH_HEAD, not origin/main: on a tag checkout the
+          # remote-tracking branch may not exist.
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD; then
+            echo "::error::$GITHUB_SHA is not an ancestor of origin/main — merge the release commit before tagging"
+            exit 1
+          fi
+
+      - name: CHANGELOG must have a section for this version
+        # The GitHub Release notes are lifted from CHANGELOG.md; without a
+        # matching section the release ships a placeholder line instead.
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # -E so the bracket escapes are well-defined (POSIX leaves `\]` in a
+          # basic regex undefined; GNU and BSD grep happen to agree, ERE does
+          # not rely on that).
+          if ! grep -qE "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$VERSION]' section — the GitHub Release would ship placeholder notes"
+            exit 1
+          fi
+
+  # The same matrix cd.yml runs before a deploy, against the tagged commit —
+  # so a release can never ship something CI rejected. Secretless by design,
+  # so no `secrets:` block is needed.
+  ci:
+    name: ci
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build and gate the artifacts
+    needs: [verify, ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check dist/*
+
+      - name: The sdist must carry the component bundle
+        # `pip install --no-binary` and downstream repackagers build from the
+        # sdist; MANIFEST.in is the only thing putting the bundle in there.
+        run: |
+          python3 - <<'PY'
+          import glob
+          import tarfile
+
+          sdist = glob.glob("dist/*.tar.gz")[0]
+          with tarfile.open(sdist) as tar:
+              names = tar.getnames()
+          assert any(
+              n.endswith("dash_mui_scheduler/dash_mui_scheduler.min.js") for n in names
+          ), f"sdist {sdist} ships no component bundle — check MANIFEST.in"
+          print(f"ok: {sdist} carries the bundle")
+          PY
+
+      - name: Install the wheel in a clean venv and prove it is a working component package
+        # The docs site never enters the wheel (setup.py packages only
+        # dash_mui_scheduler); what CAN silently break is the bundle — a wheel
+        # that installs but ships no .min.js renders nothing at runtime. This
+        # asserts the installed package carries its JS dist and reports the
+        # tagged version.
+        run: |
+          EXPECTED=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
+          python -m venv /tmp/wheelcheck
+          /tmp/wheelcheck/bin/pip install --quiet dist/*.whl
+          # Run from OUTSIDE the checkout. A script fed on stdin puts the cwd
+          # at sys.path[0], and the repo root holds dash_mui_scheduler/ — from
+          # there the import resolves to the working tree and every assertion
+          # below would pass against a wheel that shipped nothing at all.
+          cd /tmp
+          EXPECTED="$EXPECTED" /tmp/wheelcheck/bin/python - <<'PY'
+          import os
+          import pathlib
+          from importlib.metadata import version
+
+          import dash_mui_scheduler as pkg
+
+          expected = os.environ["EXPECTED"]
+          installed = version("dash-mui-scheduler")
+          assert installed == expected, f"wheel says {installed}, package.json says {expected}"
+
+          here = pathlib.Path(pkg.__file__).resolve().parent
+          assert "site-packages" in here.parts, f"imported a checkout, not the wheel: {here}"
+
+          assert pkg._js_dist, "no _js_dist — not a loadable Dash component package"
+          bundle = here / "dash_mui_scheduler.min.js"
+          assert bundle.exists(), "component bundle missing from the installed wheel"
+          print(f"ok: dash-mui-scheduler {installed}, bundle {bundle.stat().st_size} bytes")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The environment name must match the publisher configured on PyPI. Add a
+    # required reviewer on this environment in repo settings for a human
+    # approval gate between the tag and the upload.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/dash-mui-scheduler
+    permissions:
+      # `id-token: write` is what lets GitHub mint the OIDC token PyPI checks.
+      # Without it trusted publishing fails with an opaque 403.
+      id-token: write
+    steps:
+      - name: A manual run can only publish to TestPyPI
+        # Without this the job would match neither publish step below, run
+        # zero steps, and report a misleading green.
+        if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+        run: |
+          echo "::error::Manual runs publish to TestPyPI only (dry_run: true). To release to PyPI, push a v* tag."
+          exit 1
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI (manual dry run)
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish to PyPI
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: GitHub Release
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Extract this version's CHANGELOG section
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" {found=1; next}
+            found && /^## \[/ {exit}
+            found {print}
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "See CHANGELOG.md for details." > release-notes.md
+          fi
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md

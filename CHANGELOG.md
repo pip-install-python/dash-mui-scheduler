@@ -10,7 +10,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-03
+
+The component API has been stable since the first release and the docs site is
+now on the network standard, so this graduates the package out of 0.x. Nothing
+in the component itself changed — existing code keeps working untouched.
+
+### Fixed
+- **`pip install dash-mui-scheduler` no longer leans on a dependency it never
+  declared.** Every component imports `typing_extensions`, which the package
+  had been getting for free because current versions of Dash happen to install
+  it. Anyone resolving to an older Dash could install this package successfully
+  and then have it fail on import. It is now declared outright.
+
+### Added
+- **Releasing is now one push of a tag.** Publishing to PyPI used to be a manual
+  upload from a laptop. Pushing a `v*` tag now runs the whole test matrix against
+  that exact commit, builds the package, proves the built result is a working
+  component library, publishes it, and opens a GitHub release whose notes are
+  lifted from this file. No PyPI token is stored anywhere — PyPI verifies a
+  short-lived identity token that GitHub mints for this repository alone, so
+  there is no long-lived secret to leak or rotate. `RELEASING.md` documents the
+  flow.
+- **Guard rails against the releases that go wrong quietly.** A release stops
+  before it can upload if the tag disagrees with the version the package
+  declares, if the tagged commit never landed on `main`, or if this changelog
+  has no section for the version being cut. The packaging is checked as well:
+  both the wheel and the source archive must carry the built component bundle —
+  a package that installs cleanly and then renders nothing is otherwise
+  indistinguishable from a good one — and that check reads a clean install of
+  the built artifact rather than the source tree sitting beside it.
+
 ## [0.1.1] - 2026-08-01
+
+*Shipped to the documentation site; superseded on PyPI by 1.0.0, which carries
+these changes.*
 
 ### Added
 - **The docs site is now on the 2plot network standard**, the baseline proven on
