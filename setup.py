@@ -25,9 +25,13 @@ setup(
         'Source': 'https://github.com/pip-install-python/dash-mui-scheduler',
         'Documentation': 'https://muischeduler.2plot.dev',
     },
-    install_requires=['dash>=2.11.0'],
+    # typing_extensions is imported directly by every generated wrapper
+    # (TypedDict/NotRequired/Literal). Recent dash pulls it in unconditionally,
+    # but the floor here is dash 2.11 — which gated it behind a python_version
+    # marker — so declare it rather than inherit it.
+    install_requires=['dash>=2.11.0', 'typing_extensions>=4.1.1'],
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Framework :: Dash',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
