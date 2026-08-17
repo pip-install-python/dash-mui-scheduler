@@ -329,20 +329,29 @@ if IS_FLASK:
     def track_visitor():
         """Track visitor analytics before each request."""
         try:
-            from lib.auth import identify_request_user
-            from lib.analytics_tracker import resolve_client_ip, resolve_country
-            # Behind a proxy remote_addr is the PROXY — resolve the forwarded
-            # client address so visitor counts and countries mean something.
+            # Headers are passed so the tracker can read the REAL client IP
+            # and country from the proxy/CDN (behind Render or Cloudflare,
+            # remote_addr is the proxy — every visitor would look like one).
             tracker.track_visit(
                 _flask_request.path,
                 _flask_request.headers.get('User-Agent', ''),
-                resolve_client_ip(_flask_request.headers,
-                                  _flask_request.remote_addr),
-                auth_name=identify_request_user(_flask_request.cookies),
-                country=resolve_country(_flask_request.headers),
+                _flask_request.remote_addr,
+                headers=dict(_flask_request.headers),
             )
         except Exception:
             pass
+
+# Page tiers (lib/page_tiers.py) — the local half of the network's access
+# rule. Docs pages declare theirs in frontmatter (pages/markdown.py); the two
+# corpus documents are pseudo-paths that never enter dash.page_registry, so
+# they are registered here. Tier via env (LLMS_SMALL_TIER / LLMS_FULL_TIER;
+# unset = the default tier, i.e. public), and the hub can tighten either
+# network-wide through its page-tier ceilings with no redeploy here.
+# Bookkeeping only until access control is wired in — nothing enforces yet.
+from lib import page_tiers as _page_tiers
+
+_page_tiers.register("/llms-small.txt", os.environ.get("LLMS_SMALL_TIER"))
+_page_tiers.register("/llms-full.txt", os.environ.get("LLMS_FULL_TIER"))
 
 # Wire up the package: /llms.txt, /<page>/llms.txt, /robots.txt, /sitemap.xml,
 # bot-detection middleware, and (on Dash 4.3+) MCP resource registration.
@@ -432,20 +441,15 @@ elif BACKEND == "fastapi":
     )
 
 # ============================================================================
-# Satellite traffic reporting — this app's hourly rollup POSTed to 2plot.ai,
-# which is the analytics home for the whole 2plot network (its owner-only
-# /traffic dashboard charts every satellite side by side). Contract:
-# the hub repo's docs/network/satellite-analytics.md; sender: lib/traffic_report.
-# No-ops entirely without CROSS_APP_WEBHOOK_SECRET (local runs, forks) — no
-# thread, no network. Runs on both backends; keep WEB_WORKERS=1 so one
-# process owns the ledger and one reporter speaks for the app.
+# Network analytics — hourly signed rollup POSTed to 2plot.ai so the hub's
+# owner-only /traffic dashboard can chart this app alongside the network.
+# Contract: 2plotai/docs/network/satellite-analytics.md.
+# No-op unless CROSS_APP_WEBHOOK_SECRET is set.
 # ============================================================================
 
-from lib.traffic_report import start_reporter as _start_traffic_reporter
+from lib.satellite_reporter import start_reporter
 
-if not _start_traffic_reporter():
-    print("[traffic-report] disabled (no CROSS_APP_WEBHOOK_SECRET) — "
-          "the app will not appear on 2plot.ai/traffic.")
+start_reporter()
 
 # ============================================================================
 # Network bulletin — hub-published tips/announcements rendered in the llms.txt

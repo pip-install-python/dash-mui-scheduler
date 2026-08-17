@@ -33,6 +33,8 @@ venv/
 
 # Analytics
 visitor_analytics.json
+visitor_analytics.json.lock
+visitor_analytics.json.tmp
 flask_session/
 clerk_events.jsonl
 security_blocklist.json

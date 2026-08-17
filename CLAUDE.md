@@ -64,8 +64,9 @@ This repo follows the satellite standard
   Dash") reaches every surface — `Dash(title=)`, `register_page_metadata(path="/",
   name=SITE_BRAND)`, index.html `<title>`/`og:site_name`, manifest.
   `tests/test_site_identity.py` pins them; don't restate the brand, derive it.
-- **App id is `muischeduler` everywhere**: `lib/traffic_report.app_key()`,
-  `lib/ad_client.APP_ID`, `lib/bulletin.app_id()` — pinned together in tests.
+- **App id is `muischeduler` everywhere**: `lib/satellite_reporter.app_key()`
+  (env `SATELLITE_APP_KEY`), `lib/ad_client.APP_ID`, `lib/bulletin.app_id()` —
+  pinned together in tests.
 - **Social card**: `scripts/make_social_card.py` → CDN
   `cdn.2plot.ai/github_assets/muischeduler.2plot.dev.png` (1200×630). Upload is MANUAL
   and gates deploy: og:image points at the CDN, so a 404 there fails

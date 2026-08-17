@@ -51,12 +51,12 @@ def _ttl() -> float:
 def app_id() -> str:
     """This app's key in the hub's network directory.
 
-    Reused from ``lib.traffic_report`` rather than hard-coded, so a deployment
-    that sets ``SATELLITE_APP_KEY`` for its traffic rollups is automatically
-    identified the same way here. tests/test_internal_traffic.py pins this,
-    ``ad_client.APP_ID`` and the reporter key to the one short id.
+    Reused from ``lib.satellite_reporter`` rather than hard-coded, so a
+    deployment that sets ``SATELLITE_APP_KEY`` for its traffic rollups is
+    automatically identified the same way here. tests/test_internal_traffic.py
+    pins this, ``ad_client.APP_ID`` and the reporter key to the one short id.
     """
-    from lib.traffic_report import app_key
+    from lib.satellite_reporter import app_key
 
     return app_key()
 

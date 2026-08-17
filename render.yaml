@@ -65,12 +65,13 @@ services:
         sync: false
 
       # --- Network analytics: report this app's traffic to 2plot.ai ---
-      # 2plot.ai is the analytics home for the whole network; lib/traffic_report
-      # POSTs an hourly signed rollup (hits, visitors, sessions, top pages,
-      # countries) to https://2plot.ai/api/satellite/traffic, which is what puts
-      # this app on the owner-only /traffic dashboard. The secret is the SAME
-      # CROSS_APP_WEBHOOK_SECRET every satellite holds — unset it and the
-      # reporter is a clean no-op (and the app never appears on /traffic).
+      # 2plot.ai is the analytics home for the whole network;
+      # lib/satellite_reporter POSTs an hourly signed rollup (hits, visitors,
+      # sessions, top pages, countries) to https://2plot.ai/api/satellite/traffic,
+      # which is what puts this app on the owner-only /traffic dashboard. The
+      # secret is the SAME CROSS_APP_WEBHOOK_SECRET every satellite holds —
+      # unset it and the reporter is a clean no-op (and the app never appears
+      # on /traffic).
       - key: CROSS_APP_WEBHOOK_SECRET
         sync: false
       # ONE short app id, network-wide (the subdomain slug / hub directory
@@ -86,24 +87,27 @@ services:
       - key: NETWORK_BULLETIN_URL
         value: https://2plot.dev/api/network/bulletin
 
+      # Access tiers for the tiered corpus documents (/llms-small.txt,
+      # /llms-full.txt — dash-improve-my-llms >= 2.4.0). Deliberately set to
+      # the default here so every fork SEES the knob: the 402 experiment
+      # tightens the full corpus by flipping this to `auth`, per satellite,
+      # with no code change. See .env.example for the tier values.
+      - key: LLMS_SMALL_TIER
+        value: public
+      - key: LLMS_FULL_TIER
+        value: public
+
+      # The hub takes the LAST report for a given (app, date). On an ephemeral
+      # filesystem a mid-day deploy wipes the ledger and the next hourly report
+      # overwrites the day's real total with whatever accrued since the
+      # restart. The disk below is what stops that. Keep WEB_WORKERS=1 — one
+      # process owns the ledger and one reporter speaks for the app.
+      # SATELLITE_REPORT_INTERVAL_S (default 3600) tunes the report cadence;
+      # ANALYTICS_MAX_VISITS (default 20000) caps the ledger.
+      - key: TRAFFIC_ANALYTICS_FILE
+        value: /var/data/visitor_analytics.json
+
       # --- Optional ---
-      # Visitor analytics writes ./visitor_analytics.json. That path is
-      # EPHEMERAL: every deploy wipes it, so a deploy mid-day makes the next
-      # rollup report only the hits since the restart and the hub (last report
-      # per (app,date) wins) keeps the smaller number. To make daily figures
-      # survive deploys, attach a disk and point the ledger at it — add
-      # alongside `plan:` above and keep WEB_WORKERS=1 (the ledger is a
-      # whole-file rewrite per hit, so two workers lose each other's updates):
-      #   disk:
-      #     name: analytics
-      #     mountPath: /var/data
-      #     sizeGB: 1
-      # then set:
-      # - key: TRAFFIC_ANALYTICS_FILE
-      #   value: /var/data/visitor_analytics.json
-      #
-      # TRAFFIC_REPORT_INTERVAL_S (default 3600) tunes the report cadence;
-      # TRAFFIC_ANALYTICS_MAX_VISITS (default 20000) caps the ledger.
       # - key: DASH_MCP_ENABLED        # needs dash>=4.3; no-op on 4.2
       #   value: "1"
       #
@@ -112,3 +116,8 @@ services:
       # CLERK_SIGN_IN_URL=https://accounts.2plot.ai/sign-in /
       # CLERK_FRONTEND_API=https://clerk.2plot.ai / CLERK_IS_SATELLITE=true /
       # CLERK_SATELLITE_DOMAIN=<domain> / SESSION_SECRET to flip auth on.
+
+    disk:
+      name: analytics
+      mountPath: /var/data
+      sizeGB: 1

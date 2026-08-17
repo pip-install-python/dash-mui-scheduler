@@ -1,9 +1,9 @@
 """The network's internal-traffic contract — the analytics point of truth.
 
-NETWORK FILE: adapted from dash-email (itself from
-dash-documentation-boilerplate 1.2.4). This app has no `lib/hub_client.py`
-(it holds no key material and asks the hub for nothing), so that repo's third
-outbound test has no counterpart here.
+NETWORK FILE: aligned with dash-documentation-boilerplate 1.3.0 (the trio:
+analytics_tracker / traffic_rollup / satellite_reporter). This app has no
+`lib/hub_client.py` (it holds no key material and asks the hub for nothing),
+so that repo's hub-client outbound test has no counterpart here.
 
 The rule (https://2plot.ai/docs/satellite-analytics, "Internal traffic"): a
 request whose User-Agent contains `2plot-internal` is 2plot machinery talking
@@ -26,34 +26,38 @@ kept at all:
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 import pytest
 
 from conftest import BROWSER_UA, CRAWLER_UA, SAMPLE_PAGE
-from lib.analytics_tracker import tracker
+from lib.analytics_tracker import analytics_path, tracker
 from lib.constants import INTERNAL_UA, INTERNAL_UA_TOKEN, internal_ua
 
-# A real page. `lib/traffic_report` drops infrastructure paths (`/llms.txt`,
+# A real page. `lib/traffic_rollup` drops infrastructure paths (`/llms.txt`,
 # `/robots.txt`, `/healthz`, ...) at read time, so a rollup assertion made
 # against one of those would pass no matter what the tracker did.
 PAGE = SAMPLE_PAGE
 
 
 def _ledger_visits():
-    """Every hit on disk. The tracker writes synchronously (whole-file
-    rewrite per hit), so there is no buffer to flush first."""
+    """Every hit on disk, flushing the write buffer first."""
+    tracker.flush()
     try:
-        with open(tracker.data_file) as f:
+        with open(analytics_path()) as f:
             return json.load(f).get("visits", [])
     except FileNotFoundError:
         return []
 
 
 def _rollup():
-    """Today's rollup as the hub would receive it."""
-    from lib.traffic_report import build_rollup
+    """Today's rollup as the hub would receive it, or an all-zero stand-in."""
+    from lib.traffic_rollup import daily_rollup
 
-    return build_rollup()
+    tracker.flush()
+    return daily_rollup("muischeduler", datetime.now().date()) or {
+        "human_hits": 0, "bot_hits": 0,
+    }
 
 
 # --------------------------------------------------------------- the token --
@@ -67,10 +71,11 @@ def test_token_is_the_network_wide_string():
 
 
 def test_caller_suffix_never_breaks_the_token():
-    ua = internal_ua("traffic-report")
+    ua = internal_ua("traffic-reporter")
     assert INTERNAL_UA_TOKEN in ua
-    assert ua.endswith("traffic-report")
+    assert ua.endswith("traffic-reporter")
     assert internal_ua() == INTERNAL_UA
+    assert internal_ua("  ") == INTERNAL_UA
 
 
 # ------------------------------------------------------------------ inbound --
@@ -83,7 +88,7 @@ def test_the_tests_can_see_the_ledger_at_all(client, tmp_state_dir):
     own visitor_analytics.json), every "count did not change" test would pass
     vacuously. Prove a write lands first.
     """
-    assert str(tracker.data_file).startswith(tmp_state_dir), tracker.data_file
+    assert str(analytics_path()).startswith(tmp_state_dir), analytics_path()
     before = len(_ledger_visits())
     client.get(PAGE, user_agent=BROWSER_UA)
     assert len(_ledger_visits()) == before + 1
@@ -150,24 +155,12 @@ def test_real_traffic_is_still_counted(client):
     """The exclusions must not have lobotomised the tracker.
 
     A rule that drops everything also satisfies every assertion above, so the
-    positive case is load-bearing: one browser hit is one human, one bot hit
-    is one bot.
-
-    The bot probe is an AI-agent UA rather than Googlebot: on the flask
-    backend dash-improve-my-llms' bot middleware answers UAs on ITS bot list
-    (googlebot, generic 'bot'/'crawler'/'curl', ...) before run.py's tracking
-    hook runs — registered in the opposite order from dash-email — so a
-    Googlebot hit never reaches the ledger there at all (see the ordering
-    note in dash-email's run.py: tracking MUST precede add_llms_routes).
-    `ChatGPT/1.0` is classified a bot by this app's tracker but is not on the
-    package's list, so it exercises the full request path on both backends.
+    positive case is load-bearing: one browser hit is one human, one Googlebot
+    hit is one bot.
     """
-    bot_ua = "ChatGPT/1.0 (AI assistant)"
-    assert tracker.detect_device_type(bot_ua) == "bot"  # keep the probe honest
-
     before = _rollup()
     client.get(PAGE, user_agent=BROWSER_UA)
-    client.get(PAGE, user_agent=bot_ua)
+    client.get(PAGE, user_agent=CRAWLER_UA)
     after = _rollup()
 
     assert after["human_hits"] == before["human_hits"] + 1
@@ -177,54 +170,43 @@ def test_real_traffic_is_still_counted(client):
 # ----------------------------------------------------------------- outbound --
 
 
-class _FakeResponse:
-    status_code = 200
-    text = ""
+class _Captured(Exception):
+    """Abort the request once the headers have been seen."""
+
+
+def _capture_headers(monkeypatch, module, attr="post"):
+    """Record the headers of the next outbound call, then abort it."""
+    seen = {}
+
+    def fake(*args, **kwargs):
+        seen.update(kwargs.get("headers") or {})
+        raise _Captured
+
+    monkeypatch.setattr(module, attr, fake)
+    return seen
 
 
 def test_the_traffic_rollup_post_sends_the_token(monkeypatch):
-    """`post_rollup` is a clean no-op without the secret (the suite runs
-    secretless), so give it a dummy secret and capture the POST it makes."""
-    from lib import traffic_report
+    import requests
 
-    monkeypatch.setenv("CROSS_APP_WEBHOOK_SECRET", "test-secret")
+    from lib import satellite_reporter
 
-    seen = {}
-
-    def fake_post(*args, **kwargs):
-        seen.update(kwargs.get("headers") or {})
-        return _FakeResponse()
-
-    monkeypatch.setattr(traffic_report.requests, "post", fake_post)
-
-    ok = traffic_report.post_rollup(
-        {"app": "muischeduler", "date": "2026-08-01",
-         "human_hits": 0, "bot_hits": 0}
+    seen = _capture_headers(monkeypatch, requests, "post")
+    ok, _detail = satellite_reporter.post_rollup(
+        {"app": "muischeduler", "date": "2026-07-31"}, secret="test-secret"
     )
-    assert ok is True
-    ua = seen.get("User-Agent", "")
-    assert INTERNAL_UA_TOKEN in ua
-    assert ua.endswith("traffic-report")
+    assert ok is False  # the fake raised; we only wanted the headers
+    assert INTERNAL_UA_TOKEN in seen.get("User-Agent", "")
 
 
 def test_the_ad_fetch_sends_the_token(monkeypatch):
     """One call per docs page view — the loudest outbound path."""
     from lib import ad_client
 
-    seen = {}
-
-    class _Captured(Exception):
-        """Abort the request once the headers have been seen."""
-
-    def fake_get(*args, **kwargs):
-        seen.update(kwargs.get("headers") or {})
-        raise _Captured
-
-    monkeypatch.setattr(ad_client._session, "get", fake_get)
+    seen = _capture_headers(monkeypatch, ad_client._session, "get")
     # The 60s circuit breaker survives from any earlier failure in this
     # process; reset it or fetch_ad returns None without calling anything.
     monkeypatch.setattr(ad_client, "_last_failure", 0.0)
-
     assert ad_client.fetch_ad(SAMPLE_PAGE) is None  # the fake raised
     assert INTERNAL_UA_TOKEN in seen.get("User-Agent", "")
 
@@ -237,9 +219,9 @@ def test_this_app_reports_under_its_short_directory_key():
     /admin/ad-analytics and the network board, and nobody can tell they are
     the same host.
     """
-    from lib import ad_client, bulletin, traffic_report
+    from lib import ad_client, bulletin, satellite_reporter
 
-    assert traffic_report.app_key() == "muischeduler"
+    assert satellite_reporter.app_key() == "muischeduler"
     assert bulletin.app_id() == "muischeduler"
     assert ad_client.APP_ID == "muischeduler"
 

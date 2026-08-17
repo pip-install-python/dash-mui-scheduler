@@ -17,7 +17,7 @@ import dash
 
 
 def health_payload(backend: str) -> dict:
-    from lib.traffic_report import app_key
+    from lib.satellite_reporter import app_key
 
     return {
         "ok": True,

@@ -103,7 +103,7 @@ def build_health_router() -> APIRouter:
 
     @router.get("/healthz", response_model=HealthResponse, summary="Liveness probe")
     def healthz() -> HealthResponse:
-        from lib.traffic_report import app_key
+        from lib.satellite_reporter import app_key
 
         return HealthResponse(
             ok=True,

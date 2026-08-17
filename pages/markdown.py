@@ -10,12 +10,14 @@ from dash_improve_my_llms import register_page_metadata
 from markdown2dash import Admonition, BlockExec, Divider, Image, create_parser
 from pydantic import BaseModel
 
+from lib import page_tiers
 from lib.ad_client import inject_ad_into_aside
 from lib.constants import PAGE_TITLE_PREFIX, NAME_CONTENT_MAP, OG_IMAGE_URL
 from lib.directives.kwargs import Kwargs
 from lib.directives.llms_copy import LlmsCopy
 from lib.directives.source import SC
 from lib.directives.toc import TOC
+from lib.versions import substitute_versions
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +35,10 @@ class Meta(BaseModel):
     package: str = "dash_mui_scheduler"
     category: Optional[str] = None
     icon: Optional[str] = None
+    # Who may read this page: public | auth | admin | hidden. Absent means
+    # public — see lib/page_tiers.py for the tier model and why the default
+    # is open. Enforced only when access control is wired in run.py.
+    tier: Optional[str] = None
 
 
 _SOURCE_DIRECTIVE = re.compile(r'^\.\. source::(.+?)$', re.MULTILINE)
@@ -97,6 +103,13 @@ for file in files:
     metadata, content = frontmatter.parse(file.read_text())
     metadata = Meta(**metadata)
 
+    # Substitute derived facts BEFORE any consumer sees the text, so the
+    # browser page, the copy button, and /<page>/llms.txt all publish the
+    # same truth. A doc writes {{VERSION:<distribution>}} instead of a
+    # version number — any installed package, so this site documents its
+    # own component library the same way. See lib/versions.py for why.
+    content = substitute_versions(content, source=str(file))
+
     # Store raw markdown content in NAME_CONTENT_MAP for the LLM copy button.
     NAME_CONTENT_MAP[metadata.name] = content
 
@@ -131,6 +144,10 @@ for file in files:
     # Feed the expanded markdown into dash-improve-my-llms so /<page>/llms.txt
     # serves the directive-expanded prose. This replaces the custom Flask
     # route that used to live in run.py and works across all three backends.
+    # Record the declared tier before the prose is registered, so a gate can
+    # never be applied later than the content it is meant to gate.
+    page_tiers.register(metadata.endpoint, metadata.tier)
+
     expanded = _expand_source_directives(content)
     register_page_metadata(
         path=metadata.endpoint,

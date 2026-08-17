@@ -38,11 +38,13 @@ python-dotenv>=1.0.0
 # markdown2dash==0.1.2        <- installed --no-deps, see above
 
 # AI/LLM integration & SEO — from PyPI (the vendored 2.0.0 sdist is retired).
-# 2.3.4 floor is the network standard: it brings resolve_site_title (the
-# /llms.txt H1 + viewer brand chip); 2.3.3 fixed the Anthropic bot taxonomy
-# and directive stripping. Both backend extras: prod runs fastapi
+# 2.5.1 floor is the network standard (the 1.3.x instrumentation pass): tiered
+# corpus documents (/llms-small.txt, /llms-full.txt — 2.4.0) and the Tier-B
+# SEO fixes (crawler <title> carrying the site name, per-page title/image_url
+# reaching the crawler document, /favicon.ico redirect, the prerender no
+# longer clobbering per-page <title>). Both backend extras: prod runs fastapi
 # (render.yaml), CI and local dev also run flask.
-dash-improve-my-llms[flask,fastapi]>=2.3.4
+dash-improve-my-llms[flask,fastapi]>=2.5.1
 
 # Production servers. gunicorn>=23: 21.x carried two request-smuggling CVEs
 # (CVE-2024-6827, CVE-2024-1135) — that floor is why markdown2dash installs

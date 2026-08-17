@@ -10,6 +10,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+> Committed on local `main`, deliberately unpushed: the 2plot network ships
+> this instrumentation pass fleet-wide in one coordinated deploy window.
+
+### Changed
+- **Visitor analytics moved to the network's shared instrumentation** (the
+  boilerplate 1.3.x trio). The ledger is now buffered, cross-process locked,
+  pruned by a retention window, and written atomically — a busy hour no longer
+  rewrites the whole file on every hit, and two workers can no longer silently
+  overwrite each other's counts. The hourly rollup this site reports to
+  2plot.ai is computed by the same shared code every satellite runs, so the
+  network's numbers are finally measured with one rule. The Gen-0 reporter
+  (`lib/traffic_report.py`) is retired.
+- **A deploy can no longer erase the day's traffic.** The Render blueprint now
+  attaches a persistent 1 GB disk and keeps the visitor ledger on it, so a
+  mid-day deploy stops resetting the numbers the hub charts.
+- **Documentation version claims are derived, never written.** Docs prose can
+  state a package version as `{{VERSION:<distribution>}}` and the site
+  substitutes the installed version at load — a hardcoded number that drifts
+  from the shipped package can no longer appear on any page or llms.txt
+  surface. (No page had one; the mechanism now guards all of them.)
+
+### Added
+- **Every docs page can declare who may read it.** Pages accept a `tier:` in
+  their frontmatter (`public | auth | admin | hidden`), and the two corpus
+  documents (`/llms-small.txt`, `/llms-full.txt`) take theirs from
+  `LLMS_SMALL_TIER` / `LLMS_FULL_TIER`. Everything is and stays public —
+  nothing enforces yet; this records the knobs the network's 402 experiment
+  will read.
+- **`.env.example`** — the app's whole environment surface documented in one
+  file: what turns on when each variable is set, and what the app does
+  without it.
+
+### Fixed
+- **The AI/SEO package floor rises to dash-improve-my-llms 2.5.1**, picking up
+  the crawler-document fixes (the page `<title>` carrying the site name,
+  per-page social images reaching crawlers, `/favicon.ico` answered with a
+  redirect instead of the app shell).
+
 ## [1.0.0] - 2026-08-03
 
 The component API has been stable since the first release and the docs site is

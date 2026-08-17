@@ -60,7 +60,7 @@ def test_the_app_id_is_the_directory_key_not_a_second_opinion():
     """One id on every hub surface. A satellite still announcing itself as
     "boilerplate" (or "scheduler") would receive the wrong announcements."""
     from lib import bulletin
-    from lib.traffic_report import app_key
+    from lib.satellite_reporter import app_key
 
     assert bulletin.app_id() == app_key() == "muischeduler"
 
