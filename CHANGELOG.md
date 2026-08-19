@@ -10,8 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-> Committed on local `main`, deliberately unpushed: the 2plot network ships
-> this instrumentation pass fleet-wide in one coordinated deploy window.
+## [2026-08-18] — network instrumentation deploy
+
+*Shipped to the documentation site only; the `dash_mui_scheduler` package is
+unchanged — PyPI still carries 1.0.0.*
 
 ### Changed
 - **Visitor analytics moved to the network's shared instrumentation** (the
