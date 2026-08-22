@@ -43,16 +43,27 @@ shipped to the docs site only.)
 ## Layout
 - `dash_mui_scheduler/` — the built package (5 wrappers + bundles). `src/lib/` — React sources.
 - `docs/<page>/<page>.{md,py}` — each doc page: markdown frontmatter (`name`, `endpoint`,
-  `category`, `icon`) + `.. exec::docs.<page>.<page>` runs the `.py` (which sets
-  `component = ...` and registers callbacks). See `.claude/rules/docs-pages.md` when editing.
+  `category`, `icon`, `lastmod`, optional `tier`/`llms_public`/`schema_type`) +
+  `.. exec::docs.<page>.<page>` runs the `.py` (which sets `component = ...` and registers
+  callbacks). See `.claude/rules/docs-pages.md` when editing. **`lastmod` is a REAL content
+  date** — it is emitted verbatim as the sitemap `<lastmod>`; never script it from mtimes.
 - `lib/` — site plumbing: `backend.py` (backend resolution), `constants.py`,
   `analytics_tracker.py`, `asgi_middleware.py`/`asgi_routes.py` (fastapi), `directives/*`
-  (kwargs/source/toc renderers), `auth.py` + `clerk_satellite.py` + `clerk_webhook.py`
-  (Clerk plumbing, **OFF at launch** — no CLERK_* env → clean no-op; flip on later by setting
-  the satellite env, see `lib/clerk_satellite.py`).
-- `components/` — `appshell.py`, `header.py`, `navbar.py` (Scheduler + Radial sections),
-  `backend_badge.py`.
-- `pages/` — `home.py` (landing), `markdown.py` (docs loader), `not_found_404.py` (plain DMC).
+  (kwargs/source/toc renderers), `clerk_webhook.py`.
+- **The interactive gate** (batch-2 gate wave, 2026-08-22 — shipped DARK): `auth.py` is the
+  single source of truth for "is auth on" and owns BOTH wiring halves —
+  `register()` before `Dash(...)` and `configure_app(app)` after. Ship one without the other
+  and the site LIES (renders signed-in, every server render reads signed-out);
+  `tests/test_auth_wiring.py` pins both by AST. Around it: `access.py`, `page_tiers.py`
+  (two-axis), `gate_layouts.py`, `auth_demos.py`, `agent_key.py`, `hub_client.py`,
+  `page_visibility.py` + `pages/control_board.py`. It replaced the hand-rolled
+  `clerk_satellite.py` (retired — its three 0.9.0-era fixups are all upstream now).
+  Clerk is **LIVE via env group C**; every page tier is `public`, so nothing is gated.
+  The flip is env-only: `PAGE_DEFAULT_TIER=auth`.
+- `components/` — `appshell.py`, `header.py` (Clerk avatar + toggle burger), `navbar.py`
+  (Scheduler + Radial sections, `create_mobile_content` drawer), `backend_badge.py`.
+- `pages/` — `home.py` (landing), `markdown.py` (docs loader, gated registration),
+  `control_board.py` (`/admin/control-board`, fails closed), `not_found_404.py` (plain DMC).
 - `run.py` — entrypoint (PORT env). `Dockerfile`/`render.yaml` — fastapi Render deploy at
   **`https://muischeduler.2plot.dev`** (custom domain; the service's own `*.onrender.com` URL
   301s there via `lib/canonical_host.py` once `CANONICAL_HOST_REDIRECT=1`).

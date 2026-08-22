@@ -2,6 +2,7 @@
 name: Radial Lines
 description: Polar line and area charts for showing trends along periodic values, wrapping MUI X RadialLineChart (Premium, preview).
 endpoint: /radial-lines
+lastmod: 2026-07-16
 package: dash_mui_scheduler
 category: Charts
 icon: mdi:chart-bell-curve

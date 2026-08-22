@@ -2,6 +2,7 @@
 name: Events
 description: Define calendar events as plain dictionaries with ISO-string dates — including colors, all-day events, and creation controls.
 endpoint: /events
+lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:calendar-text
 ---

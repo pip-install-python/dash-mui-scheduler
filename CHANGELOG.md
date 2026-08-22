@@ -10,6 +10,68 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+*Documentation site only; the `dash_mui_scheduler` package is unchanged —
+PyPI still carries 1.0.0.*
+
+### Added
+- **A sign-in gate, shipped dark.** Every documentation page can now be put
+  behind a Clerk sign-in card, and none of them is: every tier ships
+  `public`, so the site reads exactly as it did. What changed is that gating
+  became a setting rather than a project — `PAGE_DEFAULT_TIER=auth` closes
+  the interactive site, setting it back opens it, and neither touches a line
+  of code. Pages can also declare their own tier in frontmatter.
+- **A control board at `/admin/control-board`** for hiding or gating
+  individual pages live, without a deploy. It fails closed: with the auth
+  layer unavailable, nobody gets in rather than everybody.
+- **Machine surfaces stay open on purpose.** `/llms.txt`, the tiered corpus
+  documents and each page's own `/<page>/llms.txt` are governed by a second,
+  independent axis — so gating the site for people never silently closes the
+  window agents read through. A new `/api/agent-key` turns a signed-in
+  browser session into a key that a copied `llms.txt` link carries with it,
+  because the assistant you paste that link into has no cookie.
+- **Real dates in the sitemap.** Every documentation page now declares the
+  date its content actually last changed, taken from this repository's own
+  history, and that date is published verbatim. The home page declares none:
+  it is a standing index, and any single date would be a guess.
+
+### Changed
+- **The Clerk auth hook rises 1.0.2 → 1.0.5 — this one is a security fix.**
+  On 1.0.2 signing out never told the server: the browser cleared its own
+  session while the server kept honouring the identity cookie it had already
+  issued, for up to seven days. Anyone who signed out on a shared machine
+  stayed signed in as far as this site was concerned. 1.0.5 revokes properly,
+  fixes the sign-in return trip (you now land back on the page you started
+  on, signed in, instead of on a stale card), and — specific to this
+  service's FastAPI backend — makes the authentication endpoints answerable
+  at all: before it, every one of them rejected every request.
+- **Sharper icons, and a complete set.** The favicon set was regenerated from
+  this site's own artwork and now includes the sizes that were missing, so
+  browsers, phone home screens and search results all resolve a real icon
+  instead of falling back to a generic globe.
+- **The mobile navigation is a real panel.** It now runs full height from
+  under the header, with its own search field — previously phones had no way
+  to jump to a page by name, only a long scroll, and the menu could not be
+  closed with the button that opened it.
+- **The dependency floors move up** to the versions this site actually
+  needs: the SEO layer to the release that makes page text visible to
+  non-JavaScript readers, and the component library to the release where the
+  navigation panel renders as a panel.
+
+### Fixed
+- **The deploy check was grading the previous release.** After every push the
+  post-deploy verification ran against whichever build happened to be
+  answering — in practice the one being replaced. It now waits for the
+  release it just shipped and verifies that.
+- **A false "MCP unavailable" notice on every boot.** The startup log claimed
+  the optional integration needed a newer Dash than the one running, on a
+  version that was already new enough. It was wired to the wrong entry point
+  and could never have worked; it is now wired correctly and silent unless
+  enabled.
+- **Stylesheet rules aimed at private internals of the component library**
+  were removed — four of them, including two that had already caused visible
+  layout bugs on sister sites. They would have broken silently, or started
+  restyling something else entirely, on any future upgrade.
+
 ## [2026-08-22] — Clerk auth hook 1.0.2
 
 *Shipped to the documentation site only; the `dash_mui_scheduler` package is

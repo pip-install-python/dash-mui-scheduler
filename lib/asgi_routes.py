@@ -54,6 +54,10 @@ class HealthResponse(BaseModel):
     app: str = ""
     backend: str
     dash_version: str
+    # The commit the running instance was built from (RENDER_GIT_COMMIT).
+    # Optional so the probe contract is unchanged where it is unset — see
+    # lib/health.health_payload for why CD needs it.
+    build: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -103,14 +107,12 @@ def build_health_router() -> APIRouter:
 
     @router.get("/healthz", response_model=HealthResponse, summary="Liveness probe")
     def healthz() -> HealthResponse:
-        from lib.satellite_reporter import app_key
+        from lib.health import health_payload
 
-        return HealthResponse(
-            ok=True,
-            app=app_key(),
-            backend="fastapi",
-            dash_version=dash.__version__,
-        )
+        # Shared with the flask build so the two can never disagree about
+        # what a healthy response says — including the `build` field the CD
+        # SHA-wait keys off.
+        return HealthResponse(**health_payload("fastapi"))
 
     return router
 

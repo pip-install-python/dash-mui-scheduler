@@ -2,6 +2,7 @@
 name: Drag & Resize
 description: Toggle and fine-tune drag-and-drop and resizing in the dash-mui-scheduler EventCalendar, including per-event overrides and external drag.
 endpoint: /drag-resize
+lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:cursor-move
 ---

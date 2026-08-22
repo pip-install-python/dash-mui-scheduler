@@ -11,19 +11,65 @@
 # powers the FastAPI showcase + MCP server; Flask is bundled by default.
 dash[fastapi]>=4.2.0
 dash-iconify>=0.1.2
-dash-mantine-components>=2.7.0
 
-# Optional Clerk auth (OFF at launch — zero CLERK_* keys in the env means the
-# hooks no-op: unauthenticated, $0, no network, no session files). MUST be
+# 2.8.0 is the network floor, not a preference: on 2.7.0 the network mobile
+# drawer renders as a floating card from byte-identical props (measured across
+# the gate wave). components/navbar.create_navbar_drawer depends on the 2.8
+# behaviour. NOTE for anyone adding tooltips next to the aria-labels: DMC 2.8's
+# ActionIcon/Anchor REJECT `title=` with a TypeError raised during app
+# CONSTRUCTION — the whole site fails to boot. Use dmc.Tooltip.
+dash-mantine-components>=2.8.0
+
+# ---------------------------------------------------------------------------
+# Clerk authentication (dash-clerk-auth, vendored — not on PyPI).
+#
+# Installed ALWAYS, gated at runtime: with no CLERK_* keys in the environment
+# lib/auth.py registers nothing and the site runs fully public. MUST be
 # installed WITH dependency resolution (never --no-deps: dash auto-imports the
 # package via its [dash_hooks] entry point, so a broken transitive dep crashes
-# every Dash() construction app-wide). 1.0.2 floor: 0.9.0 ships a dead avatar
-# chip on Clerk SATELLITE domains, and this host becomes one at flip-on;
-# 1.0.2 fixes a second avatar bug — the menu could paint signed-out over a
-# valid session for the whole life of the page. 1.0.1 widened the package's
-# own clerk-backend-api cap to `<8`, which is what lets pip reach
-# cryptography>=50.0.0 (GHSA-537c-gmf6-5ccf + PYSEC-2026-3552/3553/3554).
-vendor/dash_clerk_auth-1.0.2.tar.gz
+# every Dash() construction app-wide).
+#
+# The floors below are the fleet security baseline, not a preference:
+# clerk-backend-api 5.x capped cryptography at <47.0.0 — below the fixes for
+# GHSA-537c-gmf6-5ccf (48.0.1), PYSEC-2026-3553/3554 (49.0.0) and
+# PYSEC-2026-3552 (50.0.0). SDK 7.0.0 allows cryptography <51.0.0, and
+# dash-clerk-auth 1.0.1 widened its cap to <8 exactly so applications can
+# assert these floors rather than merely permit them.
+#
+# WHY 1.0.5 AND NOT 1.0.2 — this host shipped 1.0.2 on 2026-08-22 and every
+# release since fixes something that was live here:
+#   1.0.3  Sign Out finally revokes the SERVER session on the click paths.
+#          1.0.2's logout is client-side only: it runs Clerk.signOut() and
+#          reloads, while the server keeps trusting the signed __dca_identity
+#          cookie for the rest of session_lifetime_days (default 7 DAYS). A
+#          signed-out browser kept rendering every auth-gated page. With Clerk
+#          switched ON here via env group C, that hole was live on this host.
+#   1.0.4  FastAPI auth endpoints are CALLABLE for the first time — 1.0.3 (and
+#          the line before it) registered them with an un-annotated request
+#          param, which FastAPI reads as a required QUERY field: every POST
+#          422s. Inert on Flask, fatal here — this service runs
+#          DASH_BACKEND=fastapi, and POST /api/auth/session and POST
+#          /api/auth/signout were both measured returning
+#          422 {"detail":[{"loc":["query","request"],"msg":"Field required"}]}
+#          against the live host on 2026-08-22, before this bump. Also the
+#          ghost-cookie fresh-load reconciliation.
+#   1.0.5  The return-trip stale gate: sign in from a satellite, come back to
+#          the page you started on, and the first server render happens before
+#          __dca_identity is minted, so the gate card persists until a manual
+#          refresh. 1.0.5 syncs the session and reloads once, behind a
+#          sessionStorage no-loop marker shared by BOTH reconciliations.
+#
+# PROVENANCE — the dist/ tarball IS the release; there is no PyPI:
+#   sha256  a2f9062e15a69fc79deeaf76fcf1380907a961978db558b2aa227572cb2b74f3
+# GENERAL RULE, twice-proven upstream (1.0.4's 22117b20…, 1.0.5's first
+# build): early builds go stale on sdist-shipped doc edits and are NOT
+# distinguishable by name, size or date — ONLY the recorded sha admits a
+# tarball into this file. Vendor from Dash-Clerk-Auth-Hook's dist/ and verify
+# the sha before every copy.
+# ---------------------------------------------------------------------------
+./vendor/dash_clerk_auth-1.0.5.tar.gz
+clerk-backend-api>=7.0.0,<8
+cryptography>=50.0.0
 svix>=1.45.0          # Clerk webhook signature verification (POST /webhooks/clerk)
 
 # 2plot.dev ad-network client (lib/ad_client.py) + the hub traffic reporter
@@ -41,14 +87,37 @@ pydantic>=2.3.0
 python-dotenv>=1.0.0
 # markdown2dash==0.1.2        <- installed --no-deps, see above
 
+# ---------------------------------------------------------------------------
 # AI/LLM integration & SEO — from PyPI (the vendored 2.0.0 sdist is retired).
-# 2.5.1 floor is the network standard (the 1.3.x instrumentation pass): tiered
-# corpus documents (/llms-small.txt, /llms-full.txt — 2.4.0) and the Tier-B
-# SEO fixes (crawler <title> carrying the site name, per-page title/image_url
-# reaching the crawler document, /favicon.ico redirect, the prerender no
-# longer clobbering per-page <title>). Both backend extras: prod runs fastapi
-# (render.yaml), CI and local dev also run flask.
-dash-improve-my-llms[flask,fastapi]>=2.5.1
+#
+# 2.6.1 is the network floor. Each step below it loses something this site
+# publishes, so the floor is load-bearing for HONESTY, not crash avoidance:
+#   < 2.6.1  the universal prerender ships with a literal `hidden` attribute,
+#            so every visibility-respecting consumer (html-to-text extractors,
+#            arguably crawler content-weighting) reads "Loading..." where the
+#            page's prose should be. The outside-audit finding of 2026-08-22;
+#            tests/test_pages.py pins the visible shape.
+#   < 2.6.0  the sitemap goes back to lying: `register_page_metadata(lastmod=)`
+#            is swallowed into **kwargs and SILENTLY ignored, so every real
+#            date this repo stamps reverts to an invented build date. Also
+#            loses icon autodiscovery and the JSON-LD publisher logo.
+#   < 2.5.1  the Tier-B SEO standard unwinds: no `configure_seo`, the crawler
+#            <title> drops to the bare page name, per-page title/image_url
+#            never reach the crawler document, /favicon.ico serves the app
+#            shell instead of an icon.
+# run.py asserts this floor at boot (LLMS_PKG_FLOOR) so a stale environment
+# gets a diagnosis instead of a mystery. Both backend extras: prod runs
+# fastapi (render.yaml), CI and local dev also run flask.
+# ---------------------------------------------------------------------------
+dash-improve-my-llms[flask,fastapi]>=2.6.1
+# Both real backends ship above, because both are exercised: prod runs
+# fastapi (render.yaml) and CI + local dev also run flask. The third one is
+# a commented extras line rather than an install, because
+# lib/backend.resolve_backend() ACCEPTS `quart` — an operator can flip
+# DASH_BACKEND to it, and tests/test_runtime_imports.py exempts run.py's
+# optional backend imports only while the install step is written down here,
+# next to every other dependency, instead of being discovered in a traceback.
+# dash-improve-my-llms[quart]>=2.6.1    # + `pip install dash[quart]`
 
 # Production servers. gunicorn>=23: 21.x carried two request-smuggling CVEs
 # (CVE-2024-6827, CVE-2024-1135) — that floor is why markdown2dash installs

@@ -54,6 +54,15 @@
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="dash-mui-scheduler — MUI X scheduling for Dash">
+
+    <!-- twitter:card as name=, NOT property=. Dash emits the per-page
+         twitter:* set with property=, which is correct for Open Graph and
+         INVISIBLE to Twitter/X's parser — the card type is the one tag that
+         decides whether the 1200x630 image renders large or as a thumbnail,
+         so it is declared here in the form that parser actually reads. The
+         alt below stays property= to sit with the og:image:* block Dash does
+         not emit. -->
+    <meta name="twitter:card" content="summary_large_image">
     <meta property="twitter:image:alt" content="dash-mui-scheduler — MUI X scheduling for Dash">
 
     <link rel="canonical" href="__PAGE_URL__">

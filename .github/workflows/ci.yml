@@ -105,19 +105,38 @@ jobs:
         run: |
           python - <<'PY'
           import dash, dash_improve_my_llms as pkg, gunicorn
+          import dash_mantine_components as dmc
+          from importlib.metadata import version as _v
 
           def parts(v):
               return tuple(int(x) for x in v.split(".")[:3] if x.isdigit())
 
           assert parts(dash.__version__)[:2] >= (4, 2), dash.__version__
-          # 2.3.4 is the network standard: below it resolve_site_title does
-          # not exist and the published identity degrades to app.title.
-          assert parts(pkg.__version__) >= (2, 3, 4), pkg.__version__
+          # 2.6.1 is the network floor: below it the universal prerender
+          # ships `hidden` (extractors read "Loading..."), below 2.6.0 the
+          # sitemap silently swallows every real lastmod, below 2.5.1 there
+          # is no configure_seo at all. run.py asserts the same number at
+          # boot — grep the NUMBER, not the file, when this moves.
+          assert parts(pkg.__version__) >= (2, 6, 1), pkg.__version__
+          # 2.8.0: on 2.7.0 the network mobile drawer renders as a floating
+          # card from byte-identical props.
+          assert parts(dmc.__version__) >= (2, 8, 0), dmc.__version__
           # 21.x carried two request-smuggling CVEs (CVE-2024-6827,
           # CVE-2024-1135). markdown2dash's spurious <22 pin must not win.
           assert parts(gunicorn.__version__)[:2] >= (23, 0), gunicorn.__version__
+          # The Clerk security floor. 1.0.2's Sign Out never revoked the
+          # SERVER session (7 days of a signed-out browser still rendering
+          # gated pages) and its FastAPI auth endpoints 422'd every POST —
+          # this service runs fastapi. 1.0.5 closes both plus the
+          # return-trip stale gate. clerk-backend-api >=7 is what lets pip
+          # reach cryptography >=50 (four advisories).
+          assert parts(_v("dash-clerk-auth")) >= (1, 0, 5), _v("dash-clerk-auth")
+          assert parts(_v("clerk-backend-api"))[0] >= 7, _v("clerk-backend-api")
+          assert parts(_v("cryptography"))[0] >= 50, _v("cryptography")
           print(f"dash {dash.__version__}, dash-improve-my-llms "
-                f"{pkg.__version__}, gunicorn {gunicorn.__version__}")
+                f"{pkg.__version__}, dmc {dmc.__version__}, "
+                f"gunicorn {gunicorn.__version__}, "
+                f"dash-clerk-auth {_v('dash-clerk-auth')}")
           PY
 
       # No CLERK_*, no CROSS_APP_WEBHOOK_SECRET, no SESSION_SECRET here ON
@@ -180,7 +199,11 @@ jobs:
 
           v = version('dash-improve-my-llms')
           print('dash-improve-my-llms', v)
-          assert parts(v) >= (2, 3, 4), f'expected >=2.3.4 (resolve_site_title), image has {v}'
+          assert parts(v) >= (2, 6, 1), f'expected >=2.6.1 (visible prerender), image has {v}'
+
+          v = version('dash-mantine-components')
+          print('dash-mantine-components', v)
+          assert parts(v) >= (2, 8, 0), f'expected >=2.8.0 (drawer, not a floating card), image has {v}'
 
           # markdown2dash installs with --no-deps to dodge its gunicorn<22
           # pin; this assert proves the dodge kept working.
@@ -192,10 +215,23 @@ jobs:
           import markdown2dash  # noqa: F401
           print('markdown2dash importable')
 
-          # 0.9.0 ships a dead avatar chip on Clerk satellite domains.
+          # The Clerk security floor, asserted INSIDE the artifact that
+          # ships: 1.0.2's Sign Out never revoked the server session, and
+          # its FastAPI auth endpoints 422'd every POST (this image runs
+          # fastapi). A vendor/ that resolved to an empty directory would
+          # install nothing, silently — this is also that check.
           v = version('dash-clerk-auth')
           print('dash-clerk-auth', v)
-          assert parts(v) >= (0, 9, 1), f'expected dash-clerk-auth >=0.9.1, image has {v}'
+          assert parts(v) >= (1, 0, 5), f'expected dash-clerk-auth >=1.0.5, image has {v}'
+          import dash_clerk_auth  # noqa: F401  — vendored sdist actually imports
+
+          v = version('clerk-backend-api')
+          print('clerk-backend-api', v)
+          assert parts(v)[0] >= 7, f'expected clerk-backend-api >=7, image has {v}'
+
+          v = version('cryptography')
+          print('cryptography', v)
+          assert parts(v)[0] >= 50, f'expected cryptography >=50, image has {v}'
 
           import dash_mui_scheduler
           print('dash_mui_scheduler', dash_mui_scheduler.__version__)

@@ -2,8 +2,24 @@
 # Auto-deploys on push to main. Serves the component documentation at
 # https://muischeduler.2plot.dev (custom domain attached in the Render
 # dashboard; the service's own *.onrender.com URL 301s there — see
-# CANONICAL_HOST_REDIRECT). Clerk auth is OFF — no CLERK_* env vars → the auth
-# package cleanly no-ops (see lib/clerk_satellite.py for the later flip-on).
+# CANONICAL_HOST_REDIRECT).
+#
+# SHIPPED DARK (2026-08-22 gate wave): the interactive sign-in gate is fully
+# wired and every page tier is PUBLIC, so nothing is gated. The flip is
+# env-only — set PAGE_DEFAULT_TIER=auth once this host's own pre-flight
+# passes; rollback is setting it back to public. No code change either way.
+#
+# SHARED VALUES ARRIVE VIA ENV GROUPS, not from this file. Link all three on
+# the service (Render → Environment → Environment Groups):
+#   A  2plot-network-shared      the cross-app secret + network URLs
+#   B  2plot-satellite-reporting reporting cadence + BOTH /var/data paths
+#                                (TRAFFIC_ANALYTICS_FILE, PAGE_VISIBILITY_FILE)
+#   C  2plot-clerk-satellite     the whole Clerk block incl. the sign-in
+#                                redirect — this is what turns auth ON here
+# Only four vars are genuinely per-service: SATELLITE_APP_KEY, APP_BASE_URL,
+# SESSION_SECRET (must be UNIQUE per host) and AD_APP_ID. The boot guards
+# announce anything missing — a `[visibility]` or `[auth]` warning line in
+# the deploy log names it; their ABSENCE is the acceptance check.
 #
 # FIRST DEPLOY CHECKLIST:
 #   1. Create the Blueprint from this repo; fill every `sync: false` secret in
@@ -107,17 +123,63 @@ services:
       - key: TRAFFIC_ANALYTICS_FILE
         value: /var/data/visitor_analytics.json
 
+      # --- The interactive gate. SHIPPED DARK, DELIBERATELY EXPLICIT. ---
+      # `public` is also the code default, so this line changes nothing today.
+      # It is here because the flip is the whole point: an operator who has to
+      # ADD the variable to gate the site cannot see, from the service's
+      # environment, that gating is even possible. Set to `auth` after this
+      # host's pre-flight (one real sign-in round trip from the card to the
+      # hub and back). Rolling back is setting it to `public` again.
+      #
+      # NOTE it does NOT gate the corpus documents — LLMS_SMALL_TIER and
+      # LLMS_FULL_TIER above are registered with an explicit `or "public"` in
+      # run.py precisely so flipping the interactive site never silently
+      # closes the machine window.
+      - key: PAGE_DEFAULT_TIER
+        value: public
+
+      # LLMS_PUBLIC_DEFAULT stays UNSET network-wide until phase 4 — unset
+      # means the machine surfaces stay open even on gated pages, which is
+      # the data-window posture the whole network is holding.
+
+      # The control board's override store. Group B delivers this too; it is
+      # restated here because it MUST land on the same 1GB disk as the
+      # analytics ledger — on the container filesystem every deploy silently
+      # wipes the board (leaflet ran that way for weeks). A missing value is
+      # named by the `[visibility]` boot warning.
+      - key: PAGE_VISIBILITY_FILE
+        value: /var/data/page_visibility.json
+
+      # --- Clerk satellite auth (values arrive via env group C) ---
+      # 2plot.ai is the PRIMARY; every 2plot.* host is a SATELLITE sharing one
+      # Clerk app. Declared here as documentation of the contract — the group
+      # supplies the values, and SESSION_SECRET must be unique per service:
+      #   CLERK_SECRET_KEY          sk_...   backend SDK key
+      #   CLERK_PUBLISHABLE_KEY     pk_...   embedded in the injected script
+      #   CLERK_SIGN_IN_URL         https://accounts.2plot.ai/sign-in
+      #   CLERK_FRONTEND_API        https://clerk.2plot.ai  (REQUIRED on a
+      #                             custom-domain instance — it cannot be
+      #                             derived from CLERK_SIGN_IN_URL)
+      #   CLERK_IS_SATELLITE        true
+      #   CLERK_SATELLITE_DOMAIN    muischeduler.2plot.dev
+      #   SESSION_SECRET            UNIQUE per service (sync: false)
+      #   CLERK_SATELLITE_SIGN_IN_REDIRECT  https://2plot.ai/onboarding
+      #     ^ unset strands authenticated users on the primary, silently; a
+      #       truthy non-URL 404s the Sign In button, which is worse. lib/auth
+      #       boot-guards both — the absence of its two [auth] warnings in the
+      #       deploy log is the acceptance check for this variable.
+      - key: SESSION_SECRET
+        sync: false
+
       # --- Optional ---
       # - key: DASH_MCP_ENABLED        # needs dash>=4.3; no-op on 4.2
       #   value: "1"
-      #
-      # --- Clerk (later, when the docs get a 2plot.* domain) ---
-      # Set CLERK_SECRET_KEY / CLERK_PUBLISHABLE_KEY /
-      # CLERK_SIGN_IN_URL=https://accounts.2plot.ai/sign-in /
-      # CLERK_FRONTEND_API=https://clerk.2plot.ai / CLERK_IS_SATELLITE=true /
-      # CLERK_SATELLITE_DOMAIN=<domain> / SESSION_SECRET to flip auth on.
 
+    # A DECLARATION ATTACHES NOTHING. Verify in the dashboard's Disks tab, or
+    # trust the boot guards: a `[visibility]` warning names exactly which half
+    # is missing. The disk carries BOTH the analytics ledger and the control
+    # board's override store; without it every deploy wipes both.
     disk:
-      name: analytics
+      name: app-state
       mountPath: /var/data
       sizeGB: 1

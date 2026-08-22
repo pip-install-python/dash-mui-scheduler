@@ -2,6 +2,7 @@
 name: Preferences
 description: Control the EventCalendar's default display preferences and the user-facing preferences menu in dash-mui-scheduler.
 endpoint: /preferences
+lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:tune
 ---

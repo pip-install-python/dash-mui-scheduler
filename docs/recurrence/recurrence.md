@@ -2,6 +2,7 @@
 name: Recurrence
 description: Build recurring events in dash-mui-scheduler with EventCalendarPremium using RRULE strings, RRULE objects and exception dates.
 endpoint: /recurrence
+lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:calendar-sync
 ---

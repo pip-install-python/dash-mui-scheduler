@@ -2,6 +2,7 @@
 name: Resources
 description: Organize EventCalendar events by resource — define resources with colors, assign events, control which resources are visible, and require a resource on creation.
 endpoint: /resources
+lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:account-group
 ---

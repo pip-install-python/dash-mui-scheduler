@@ -2,6 +2,7 @@
 name: Event Calendar
 description: The EventCalendar component — a day/week/month/agenda calendar whose events round-trip across the Dash boundary as plain dicts with ISO-string dates.
 endpoint: /event-calendar
+lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:calendar-month
 ---
