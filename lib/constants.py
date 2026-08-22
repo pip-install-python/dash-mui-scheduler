@@ -14,11 +14,16 @@ import os as _os
 # "Pip Install Python" is the byline, never part of the brand.
 SITE_BRAND = "dash-mui-scheduler — MUI X scheduling for Dash"
 
+# ~155 characters, deliberately. This is the meta description, and Google
+# truncates the snippet around 155-160 — the previous 284-character version
+# lost its whole second half (every component name after the first two, and
+# the byline) to an ellipsis in the one place it was meant to be read. The
+# full component list still reaches search: it is in the JSON-LD, the /llms.txt
+# body and the crawler document's prose. Keep the byline — test_site_identity
+# pins "Pip Install Python" here.
 SITE_DESCRIPTION = (
-    "Event calendar, resource timeline & radial chart components for Plotly "
-    "Dash, wrapping the MUI X Scheduler — EventCalendar, EventCalendarPremium, "
-    "EventTimeline, RadialLineChart and RadialBarChart, with recurrence, "
-    "drag & resize, resources, timezones and theming. By Pip Install Python."
+    "Event calendar, resource timeline and radial chart components for Plotly "
+    "Dash, wrapping the MUI X Scheduler. By Pip Install Python."
 )
 
 # The brand without its tagline — for surfaces that prefix something else and
