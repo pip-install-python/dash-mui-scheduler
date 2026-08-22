@@ -1,40 +1,58 @@
 import dash_mantine_components as dmc
-from dash import Output, Input, clientside_callback, html, get_asset_url
+from dash import Output, Input, State, clientside_callback, html, get_asset_url
 from dash_iconify import DashIconify
 
 from components.backend_badge import create_backend_badge
 from lib.backend import get_backend_info
 
 
-def create_link(icon, href, label=None, visible_from=None):
-    """Create an external link icon button (label = accessible name for the icon-only control).
+def create_link(icon, href, label, visible_from=None):
+    """Create an external link icon button.
 
-    visible_from: optional Mantine breakpoint (e.g. "md") — the link is hidden below it
-    (used to drop the GitHub icon on xs-sm phone widths where the header is crowded)."""
+    ``label`` is REQUIRED: an icon-only link has no accessible name, so screen
+    readers announce it as "link" and AI agents cannot tell what it does — the
+    Lighthouse/Agentic-Browsing failure measured across the fleet 2026-08-21.
+    The label lands on both the anchor and the button.
+
+    visible_from: optional Mantine breakpoint (e.g. "md") — the link is hidden
+    below it (this fork drops the GitHub icon on xs-sm phone widths, where the
+    header is crowded). NOTE that a hidden node also leaves the accessibility
+    tree, so anything load-bearing must not rely on being announced there.
+    """
     return dmc.Anchor(
         dmc.ActionIcon(
             DashIconify(icon=icon, width=22),
             variant="subtle",
             size="lg",
             color="gray",
-            **({"aria-label": label} if label else {}),
+            **{"aria-label": label},
         ),
         href=href,
         target="_blank",
+        **{"aria-label": label},
         **({"visibleFrom": visible_from} if visible_from else {}),
     )
 
 
-def _create_auth_chip():
-    """Signed-in observer chip (optional Clerk auth) — None when auth is off.
+def create_clerk_avatar():
+    """Clerk avatar / sign-in control, sat beside the colour-scheme toggle.
 
-    Same pattern as _create_openapi_link: None is a legal Group child, so the
-    header renders identically when CLERK_* keys are absent."""
+    Returns None when Clerk is not configured, so local development and any
+    deploy without the keys renders the header exactly as before rather than
+    erroring on a missing component (None is a legal Group child).
+    ``lib/auth.py`` registers Clerk with ``headless=True``, meaning the
+    package injects NO UI of its own — without this widget there is no way to
+    sign in even though Clerk initialises. The package renders
+    ``#clerk-login-button`` inside it; since dash-clerk-auth 0.9.2 that
+    button's own handler is satellite-safe, so it needs nothing from us.
+    """
     from lib.auth import clerk_enabled
+
     if not clerk_enabled():
         return None
     from dash_clerk_auth import create_clerk_menu
-    return create_clerk_menu()
+
+    return create_clerk_menu(show_dropdown=True, dropdown_align="right")
 
 
 def create_search(data):
@@ -139,6 +157,14 @@ def create_header(data):
                             ),
                             href="/",
                             underline=False,
+                            # The home link's accessible name comes from THIS
+                            # label, not the wordmark text: below md the
+                            # wordmark is display:none (visibleFrom), which
+                            # removes it from the accessibility tree — and the
+                            # logo img is decorative (alt=""). Without the
+                            # label the home link has no name at all on
+                            # phones. Two forks hit this independently.
+                            **{"aria-label": "dash-mui-scheduler — home"},
                         ),
                     ],
                     gap="md",
@@ -175,8 +201,8 @@ def create_header(data):
                             size="lg",
                             **{"aria-label": "Toggle color scheme"},
                         ),
-                        # Optional Clerk auth: signed-in observer avatar/menu (None when off)
-                        _create_auth_chip(),
+                        # Optional Clerk auth: avatar / sign-in menu (None when off)
+                        create_clerk_avatar(),
                     ],
                     gap="sm",
                 ),
@@ -200,9 +226,31 @@ clientside_callback(
     Input("select-component", "value"),
 )
 
+# Mobile drawer search -> navigate (the header Select is hidden below `sm`,
+# so without this the drawer's own Select picks a page and nothing happens).
 clientside_callback(
-    """function(n_clicks) { return true }""",
+    """
+    function(value) {
+        if (value) {
+            return value
+        }
+        return window.dash_clientside.no_update
+    }
+    """,
+    Output("url", "href", allow_duplicate=True),
+    Input("mobile-select-component", "value"),
+    prevent_initial_call=True,
+)
+
+# The overlay no longer covers the header, so the hamburger stays reachable
+# while the drawer is open — make a second tap CLOSE it. The old
+# `return true` could only ever open: tapping the burger again re-set opened
+# to the value it already had, and the drawer was stuck until the overlay
+# was tapped.
+clientside_callback(
+    """function(n_clicks, opened) { return !opened }""",
     Output("components-navbar-drawer", "opened"),
     Input("drawer-hamburger-button", "n_clicks"),
+    State("components-navbar-drawer", "opened"),
     prevent_initial_call=True,
 )

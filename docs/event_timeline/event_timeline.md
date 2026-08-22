@@ -2,6 +2,7 @@
 name: Event Timeline
 description: Build a resource-row, Gantt-style timeline in dash-mui-scheduler with EventTimeline — resources as rows, multi-day allocation bars and zoom presets.
 endpoint: /event-timeline
+lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:chart-timeline
 ---

@@ -14,11 +14,16 @@ import os as _os
 # "Pip Install Python" is the byline, never part of the brand.
 SITE_BRAND = "dash-mui-scheduler — MUI X scheduling for Dash"
 
+# ~155 characters, deliberately. This is the meta description, and Google
+# truncates the snippet around 155-160 — the previous 284-character version
+# lost its whole second half (every component name after the first two, and
+# the byline) to an ellipsis in the one place it was meant to be read. The
+# full component list still reaches search: it is in the JSON-LD, the /llms.txt
+# body and the crawler document's prose. Keep the byline — test_site_identity
+# pins "Pip Install Python" here.
 SITE_DESCRIPTION = (
-    "Event calendar, resource timeline & radial chart components for Plotly "
-    "Dash, wrapping the MUI X Scheduler — EventCalendar, EventCalendarPremium, "
-    "EventTimeline, RadialLineChart and RadialBarChart, with recurrence, "
-    "drag & resize, resources, timezones and theming. By Pip Install Python."
+    "Event calendar, resource timeline and radial chart components for Plotly "
+    "Dash, wrapping the MUI X Scheduler. By Pip Install Python."
 )
 
 # The brand without its tagline — for surfaces that prefix something else and
@@ -55,7 +60,12 @@ except Exception:  # pragma: no cover - never break startup over a version strin
 # serving the same site forever — lib/canonical_host.py 301s it here so the two
 # don't compete as duplicates.
 # ---------------------------------------------------------------------------
-BASE_URL = _os.getenv("APP_BASE_URL", "https://muischeduler.2plot.dev").rstrip("/")
+# Named rather than inlined into the getenv call so the guard below, and
+# tests/test_config.py, can assert what a deploy that forgets APP_BASE_URL
+# would actually publish. Never trailing-slashed.
+DEFAULT_BASE_URL = "https://muischeduler.2plot.dev"
+
+BASE_URL = _os.getenv("APP_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 
 # Hostname only — what lib/canonical_host.py compares the Host header against.
 CANONICAL_HOST = BASE_URL.split("//", 1)[-1].split("/", 1)[0]
@@ -86,6 +96,21 @@ OG_IMAGE_WIDTH = 1200
 OG_IMAGE_HEIGHT = 630
 OG_IMAGE_TYPE = "image/png"
 OG_IMAGE_ALT = SITE_BRAND
+
+# ---------------------------------------------------------------------------
+# Publisher identity for the crawler document's JSON-LD (configure_seo).
+# ---------------------------------------------------------------------------
+# `same_as` is the "these are all the same thing" signal on the crawler page:
+# for a docs satellite it lists the documented package's GitHub repo and PyPI
+# project — three properties pointing at each other is the strongest statement
+# of which URL is this package's canonical docs home. The other half of the
+# loop (PyPI project_urls and the GitHub README pointing back at this
+# subdomain) is a per-package checklist item, not code.
+PUBLISHER = "Pip Install Python LLC"
+SAME_AS = [
+    "https://github.com/pip-install-python/dash-mui-scheduler",
+    "https://pypi.org/project/dash-mui-scheduler/",
+]
 
 # ---------------------------------------------------------------------------
 # The network's internal-traffic contract
@@ -139,6 +164,13 @@ def require_owned_base_url(base_url: str = BASE_URL) -> None:
                 "one host."
             )
 
+
+# Height of the fixed AppShell header, in px. Consumed by AppShell(header=...)
+# in components/appshell.py and by the mobile drawer, which docks itself
+# directly below the header. Change it HERE only — the two must never drift
+# apart, and a drawer that starts a few px off leaves the hamburger under an
+# overlay it cannot be tapped through.
+HEADER_HEIGHT = 70
 
 # Populated by pages/markdown.py when loading documentation files (raw markdown
 # keyed by page name) — used by the "copy for LLM" button directive.

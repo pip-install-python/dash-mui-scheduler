@@ -207,8 +207,41 @@ def test_the_rendered_card_on_disk_is_the_declared_shape():
     assert int.from_bytes(raw[20:24], "big") == OG_IMAGE_HEIGHT
 
 
+def _meta_attr(html: str, attr: str, value: str) -> list[str]:
+    """`content`s for a meta tag matched on ONE attribute form specifically.
+
+    `_meta` deliberately conflates `property=` and `name=`; twitter:card is
+    the one tag where the difference decides whether anything renders, so it
+    gets its own matcher.
+    """
+    pattern = (
+        rf'<meta[^>]*{attr}="{re.escape(value)}"[^>]*content="([^"]*)"'
+        rf'|<meta[^>]*content="([^"]*)"[^>]*{attr}="{re.escape(value)}"'
+    )
+    return [a or b for a, b in re.findall(pattern, html)]
+
+
 def test_the_twitter_card_is_a_large_image(client):
-    assert _meta(client.get("/").text, "twitter:card") == ["summary_large_image"]
+    """Declared exactly once in the form Twitter/X actually parses.
+
+    Dash emits `twitter:card` with `property=`, which is correct for Open
+    Graph and INVISIBLE to Twitter's parser — measured across the network
+    2026-08-14, when no page declared a card type any scraper could see.
+    templates/index.html therefore adds the `name=` form, and the two
+    coexisting is DELIBERATE: Twitter reads the name= one, everything else
+    ignores it. What must never happen is a second copy of EITHER form, or
+    the two disagreeing about the card type.
+    """
+    html = client.get("/").text
+    by_name = _meta_attr(html, "name", "twitter:card")
+    by_property = _meta_attr(html, "property", "twitter:card")
+    assert by_name == ["summary_large_image"], (
+        'expected exactly one name="twitter:card" — the only form Twitter/X '
+        f"reads — found {by_name}"
+    )
+    assert by_property in ([], ["summary_large_image"]), (
+        f"Dash's property= copy disagrees with the declared card type: {by_property}"
+    )
 
 
 def test_no_meta_tag_dash_emits_is_also_declared_statically(client):
@@ -219,8 +252,11 @@ def test_no_meta_tag_dash_emits_is_also_declared_statically(client):
     PAGE — so the duplicate is both redundant and the less accurate of the two.
     """
     html = client.get("/").text
+    # twitter:card is the deliberate exception, with its own test above:
+    # Dash's property= form is invisible to Twitter/X's parser, so
+    # templates/index.html declares the name= form alongside it ON PURPOSE.
     for tag in ("description", "og:type", "og:title", "og:description",
-                "og:image", "twitter:card", "twitter:url", "twitter:title",
+                "og:image", "twitter:url", "twitter:title",
                 "twitter:description", "twitter:image"):
         found = _meta(html, tag)
         assert len(found) <= 1, f"{tag} is declared {len(found)} times: {found}"

@@ -19,10 +19,26 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir --upgrade pip
 
-# Python deps. vendor/ must be in place BEFORE the install — requirements.txt
-# references vendored sdists (dash_clerk_auth) by path.
-COPY requirements.txt .
+# Python deps. vendor/ MUST be copied BEFORE the requirements install —
+# requirements.txt installs dash_clerk_auth from ./vendor/ by path (it is not
+# on PyPI). Get the order wrong and pip reports the missing path as a SOFT
+# WARNING, then dies seconds later on an OSError that reads like a registry
+# outage (emojimart's image died on exactly this). A vendor/ that resolves to
+# an EMPTY directory is worse still: it installs nothing, silently — which is
+# why CI asserts the clerk version and imports the package inside the built
+# image rather than trusting this layer.
+#
+# CACHE SEMANTICS (the round-2 fleet lesson, found by pannellum 2026-08-22):
+# this layer re-runs ONLY when vendor/ or requirements.txt bytes change. A
+# `>=` floor can NEVER pull a newer release through a cache hit — a code-only
+# commit rebuilds the app layers below while pip silently keeps whatever
+# version the image was first built with. Ship every dependency upgrade as a
+# floor bump in requirements.txt (grep the NUMBER — it also lives in run.py's
+# boot floor and in both CI gates): the bump IS the cache bust, and the boot
+# floor turns a stale image from a silent downgrade into a loud refusal to
+# start.
 COPY vendor/ ./vendor/
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # markdown2dash 0.1.2 pins gunicorn>=21.2,<22 — stuck on two request-smuggling

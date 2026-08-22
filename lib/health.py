@@ -13,18 +13,36 @@ a deployment happens to run. Keep it cheap: the hub measures the round trip.
 """
 from __future__ import annotations
 
+import os
+
 import dash
 
 
 def health_payload(backend: str) -> dict:
     from lib.satellite_reporter import app_key
 
-    return {
+    payload = {
         "ok": True,
         "app": app_key(),
         "backend": backend,
         "dash_version": dash.__version__,
     }
+    # Which commit the RUNNING instance was built from. This is what lets CD
+    # verify the artifact it shipped rather than whichever build happens to
+    # be serving: this service has a disk, so it RESTARTS with a blip
+    # instead of overlapping instances, and a bare 200 therefore proves
+    # nothing about WHICH build answered. muicharts found its battery had
+    # been verifying the previous release on every run, invisibly, until a
+    # run added a surface the old build didn't have (2026-08-21).
+    #
+    # OPTIONAL by design: the field is simply absent on a build predating it
+    # (or anywhere but Render), and the CD wait falls back with a warning
+    # rather than failing. The probe contract — `ok: true` — is unchanged,
+    # so the hub sweep and the battery are unaffected either way.
+    build = os.environ.get("RENDER_GIT_COMMIT")
+    if build:
+        payload["build"] = build
+    return payload
 
 
 def register_health_route(app, backend: str) -> None:

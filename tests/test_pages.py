@@ -14,6 +14,8 @@ noticing:
 
 from __future__ import annotations
 
+import re
+
 
 def test_every_registered_page_serves_200(client, pages):
     """A browser GET on every registered path.
@@ -68,3 +70,48 @@ def test_every_registry_entry_declares_description_and_image(pages):
             missing.append(f"{path} ({name}): empty image_url — og:image will "
                            "be content=\"\" and the share card renders blank")
     assert missing == [], f"register_page calls missing metadata: {missing}"
+
+
+def test_prerender_rides_the_generic_lane_not_a_ua_gate(client):
+    """The universal prerender must be in the initial HTML for a PLAIN
+    client — no crawler user-agent. An outside SEO audit (2026-08-22) read
+    five hosts as serving "Loading... and nothing else" to browsers; the
+    prose was there all along, but every test that touched the prerender
+    fetched with a CRAWLER UA (which exercises the separate bot-document
+    path), so a regression that UA-gated the universal lane would have been
+    invisible to the suite. This test is the generic-lane pin.
+
+    Since the 2.6.1 floor the block must also be VISIBLE: dimll <= 2.6.0
+    shipped the div with a literal `hidden` attribute, so every
+    visibility-respecting text extractor (and arguably crawler
+    content-weighting) saw only "Loading..." — present and invisible, the
+    worst of both. 2.6.1 serves it visible and hides it via a synchronous
+    inline script that only JS browsers execute (React's mount then wipes
+    the pair, so nothing changes for humans). The div shape below is the
+    regression pin for that fix, from the app's side.
+
+    A second failure mode this catches for free: dimll's injector uses a
+    SUBSTRING idempotency probe, so the marker string appearing anywhere in
+    the served document — an index.html HTML comment is how two hosts in
+    this fleet did it — makes every response read as already-injected and
+    silently disables the entire prerender. Never spell the marker in any
+    served template or asset text.
+    """
+    for path in ("/", "/quickstart"):
+        html = client.get(path).text  # default UA — the point of the test
+        div = re.search(r'<div id="dimll-prerender"[^>]*>', html)
+        assert div, (
+            f"{path}: no prerender block for a generic client — the "
+            "universal lane is gated, off, or disabled by the marker string "
+            "appearing somewhere else in the served document"
+        )
+        assert "hidden" not in div.group(0), (
+            f"{path}: the prerender div carries `hidden` again — "
+            "visibility-respecting consumers are back to reading "
+            "'Loading...'; the dimll floor is >=2.6.1 for exactly this"
+        )
+        assert 'data-dimll-prerender="1">document.getElementById' in html, (
+            f"{path}: the marked synchronous hide script is missing — "
+            "JS browsers would flash the prose before React mounts"
+        )
+        assert "<main>" in html, f"{path}: prerender block carries no <main> prose"
