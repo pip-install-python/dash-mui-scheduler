@@ -17,9 +17,13 @@ dash-mantine-components>=2.7.0
 # hooks no-op: unauthenticated, $0, no network, no session files). MUST be
 # installed WITH dependency resolution (never --no-deps: dash auto-imports the
 # package via its [dash_hooks] entry point, so a broken transitive dep crashes
-# every Dash() construction app-wide). 0.9.1 floor: 0.9.0 ships a dead avatar
-# chip on Clerk SATELLITE domains, and this host becomes one at flip-on.
-vendor/dash_clerk_auth-0.9.1.tar.gz
+# every Dash() construction app-wide). 1.0.2 floor: 0.9.0 ships a dead avatar
+# chip on Clerk SATELLITE domains, and this host becomes one at flip-on;
+# 1.0.2 fixes a second avatar bug — the menu could paint signed-out over a
+# valid session for the whole life of the page. 1.0.1 widened the package's
+# own clerk-backend-api cap to `<8`, which is what lets pip reach
+# cryptography>=50.0.0 (GHSA-537c-gmf6-5ccf + PYSEC-2026-3552/3553/3554).
+vendor/dash_clerk_auth-1.0.2.tar.gz
 svix>=1.45.0          # Clerk webhook signature verification (POST /webhooks/clerk)
 
 # 2plot.dev ad-network client (lib/ad_client.py) + the hub traffic reporter

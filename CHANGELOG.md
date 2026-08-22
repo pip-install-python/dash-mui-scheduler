@@ -10,6 +10,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-08-18] — Clerk auth hook 1.0.2
+
+*Shipped to the documentation site only; the `dash_mui_scheduler` package is
+unchanged — PyPI still carries 1.0.0.*
+
+### Changed
+- **The vendored Clerk auth hook rises 0.9.1 → 1.0.2** ahead of the auth
+  flip-on: the avatar menu no longer paints signed-out over a valid session
+  (it lost a race against Dash mounting the menu), and 1.0.1's widened
+  `clerk-backend-api` cap lets pip resolve `cryptography>=50.0.0`, clearing
+  four published advisories (GHSA-537c-gmf6-5ccf, PYSEC-2026-3552/3553/3554)
+  from the installed environment.
+
 ## [2026-08-18] — network instrumentation deploy
 
 *Shipped to the documentation site only; the `dash_mui_scheduler` package is
