@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-## [2026-08-18] — Clerk auth hook 1.0.2
+## [2026-08-22] — Clerk auth hook 1.0.2
 
 *Shipped to the documentation site only; the `dash_mui_scheduler` package is
 unchanged — PyPI still carries 1.0.0.*
