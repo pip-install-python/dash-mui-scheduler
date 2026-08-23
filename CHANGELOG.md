@@ -10,8 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-08-22] — the interactive sign-in gate, shipped dark
+
 *Documentation site only; the `dash_mui_scheduler` package is unchanged —
-PyPI still carries 1.0.0.*
+PyPI still carries 1.0.0. Merged as PR #8 and deployed the same evening;
+the Clerk 1.0.2 section below shipped earlier the same day and this
+supersedes it.*
 
 ### Added
 - **A sign-in gate, shipped dark.** Every documentation page can now be put
