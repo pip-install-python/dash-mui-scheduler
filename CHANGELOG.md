@@ -10,8 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-08-23] — one headline per page, and a health probe that answers
+
 *Documentation site only; the `dash_mui_scheduler` package is unchanged —
-PyPI still carries 1.0.0.*
+PyPI still carries 1.0.0. Shipped as `d0f4068` and deployed the same
+evening.*
 
 ### Fixed
 - **Every page served crawlers two headlines instead of one.** The
