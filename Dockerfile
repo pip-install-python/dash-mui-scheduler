@@ -5,7 +5,7 @@
 # setup.py only reads package.json — so `pip install -e .` works without npm.
 # TRADE-OFF: changes under src/lib/components require a local `npm run build`
 # and committing the regenerated artifacts (the image no longer self-builds).
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # PYTHONUNBUFFERED is load-bearing: without it Python block-buffers stdout to
 # the pipe and NONE of the boot diagnostics (bulletin wired/off, traffic
