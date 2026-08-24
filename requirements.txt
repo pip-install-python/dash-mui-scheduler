@@ -9,7 +9,7 @@
 
 # Core Dash 4.x (pluggable backends, MCP, websocket callbacks). FastAPI extra
 # powers the FastAPI showcase + MCP server; Flask is bundled by default.
-dash[fastapi]>=4.2.0
+dash[fastapi]>=4.4.1
 dash-iconify>=0.1.2
 
 # 2.8.0 is the network floor, not a preference: on 2.7.0 the network mobile
