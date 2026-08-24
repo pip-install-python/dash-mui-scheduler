@@ -39,10 +39,19 @@ from dash_improve_my_llms import (
 
 # The version requirements.txt pins. Asserted at boot — see the floors block.
 #
-# 2.6.1 is the network floor because below it the universal prerender ships
-# with a literal `hidden` attribute: every visibility-respecting consumer
-# (html-to-text extractors, arguably crawler content-weighting) reads
-# "Loading..." where this site's prose should be. Below 2.6.0 the sitemap
+# 2.7.1 is the network floor (round-3). Below 2.7.1 the llms.txt v2
+# discovery relations are missing on both lanes — rel=alternate /
+# rel=describedby plus the matching Link headers — along with the
+# `Accept: text/plain` ramp and the representation digest, which is the
+# machine route from a page to that page's prose. Below 2.7.0 every page
+# serves a DUPLICATE H1 to crawlers (the injected prerender header plus the
+# doc body's own), the home footer doubles its /llms.txt link, and a page
+# that merely MENTIONS the prerender marker loses its prerender entirely —
+# the injector's idempotency probe is a substring match, and that trap
+# blanked two hub pages in this fleet. Below 2.6.1 the universal prerender
+# ships with a literal `hidden` attribute: every visibility-respecting
+# consumer (html-to-text extractors, arguably crawler content-weighting)
+# reads "Loading..." where this site's prose should be. Below 2.6.0 the sitemap
 # goes back to lying — `register_page_metadata(lastmod=)` is swallowed into
 # **kwargs and SILENTLY ignored, so the real dates in the docs frontmatter
 # revert to invented build dates. Below 2.5.1 the Tier-B SEO standard
@@ -50,7 +59,7 @@ from dash_improve_my_llms import (
 # document, /favicon.ico serves the app shell.
 # `configure_seo` is imported AFTER this floor fires so a stale environment
 # gets the floor's diagnosis instead of a bare ImportError.
-LLMS_PKG_FLOOR = (2, 6, 1)
+LLMS_PKG_FLOOR = (2, 7, 1)
 
 # THE FORK POINT — claim this app's network identity before any hub-facing
 # module imports. Every module that names this app (satellite_reporter,
@@ -126,6 +135,14 @@ if LLMS_PKG_FLOOR > _version(LLMS_PKG_VERSION):
     _dependency_floor(
         f"dash-improve-my-llms {LLMS_PKG_VERSION} is below the "
         f"{'.'.join(str(n) for n in LLMS_PKG_FLOOR)} floor in requirements.txt. "
+        "Below 2.7.1 the llms.txt v2 discovery relations (rel=alternate/"
+        "describedby + Link headers), the text/plain Accept ramp and the "
+        "representation digest are missing — the machine lane loses its "
+        "route from a page to that page's prose. Below 2.7.0 every page "
+        "serves a DUPLICATE H1 to crawlers (the injected prerender header "
+        "plus the doc body's own), the home footer doubles its /llms.txt "
+        "link, and a page that merely MENTIONS the prerender marker loses "
+        "its prerender entirely (the marker-in-comment trap). "
         "Below 2.6.1 the universal prerender ships `hidden`, so every "
         "visibility-respecting consumer (text extractors, arguably crawler "
         "content-weighting) reads 'Loading...' instead of the page's prose. "

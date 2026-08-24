@@ -90,8 +90,22 @@ python-dotenv>=1.0.0
 # ---------------------------------------------------------------------------
 # AI/LLM integration & SEO — from PyPI (the vendored 2.0.0 sdist is retired).
 #
-# 2.6.1 is the network floor. Each step below it loses something this site
-# publishes, so the floor is load-bearing for HONESTY, not crash avoidance:
+# 2.7.1 is the network floor (the round-3 fleet number). Each step below it
+# loses something this site publishes, so the floor is load-bearing for
+# HONESTY, not crash avoidance:
+#   < 2.7.1  the llms.txt v2 discovery relations go missing — rel=alternate /
+#            rel=describedby on BOTH lanes plus the matching Link headers —
+#            along with the `Accept: text/plain` ramp and the representation
+#            content digest. These are the surfaces the network's agent lane
+#            composes over: without them an agent that finds a page has no
+#            machine-readable route to that page's prose.
+#   < 2.7.0  every page serves a DUPLICATE H1 to crawlers (the injected
+#            prerender header plus the doc body's own markdown H1), the home
+#            footer prints its /llms.txt link twice, and — the sharp one — a
+#            page that merely MENTIONS the prerender marker loses its
+#            prerender entirely, because the injector's idempotency probe is
+#            a substring match. Two hosts in this fleet blanked their hub
+#            pages that way. tests/test_pages.py pins the single-H1 shape.
 #   < 2.6.1  the universal prerender ships with a literal `hidden` attribute,
 #            so every visibility-respecting consumer (html-to-text extractors,
 #            arguably crawler content-weighting) reads "Loading..." where the
@@ -108,8 +122,16 @@ python-dotenv>=1.0.0
 # run.py asserts this floor at boot (LLMS_PKG_FLOOR) so a stale environment
 # gets a diagnosis instead of a mystery. Both backend extras: prod runs
 # fastapi (render.yaml), CI and local dev also run flask.
+#
+# REMEMBER THE CACHE TRAP (the round-2 fleet lesson, restated here beside the
+# number): THIS LINE CHANGING IS THE DOCKER CACHE BUST. The image's pip layer
+# re-runs only when requirements.txt or vendor/ bytes change, so a `>=` floor
+# can never pull a newer release through a cache hit — an upgrade that isn't
+# a floor bump silently keeps whatever version the image was first built
+# with. Grep the NUMBER, not the file: it also lives in run.py's boot floor
+# and in both ci.yml gates.
 # ---------------------------------------------------------------------------
-dash-improve-my-llms[flask,fastapi]>=2.6.1
+dash-improve-my-llms[flask,fastapi]>=2.7.1
 # Both real backends ship above, because both are exercised: prod runs
 # fastapi (render.yaml) and CI + local dev also run flask. The third one is
 # a commented extras line rather than an install, because
@@ -117,7 +139,7 @@ dash-improve-my-llms[flask,fastapi]>=2.6.1
 # DASH_BACKEND to it, and tests/test_runtime_imports.py exempts run.py's
 # optional backend imports only while the install step is written down here,
 # next to every other dependency, instead of being discovered in a traceback.
-# dash-improve-my-llms[quart]>=2.6.1    # + `pip install dash[quart]`
+# dash-improve-my-llms[quart]>=2.7.1    # + `pip install dash[quart]`
 
 # Production servers. gunicorn>=23: 21.x carried two request-smuggling CVEs
 # (CVE-2024-6827, CVE-2024-1135) — that floor is why markdown2dash installs

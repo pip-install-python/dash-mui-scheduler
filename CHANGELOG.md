@@ -10,6 +10,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+*Documentation site only; the `dash_mui_scheduler` package is unchanged —
+PyPI still carries 1.0.0.*
+
+### Fixed
+- **Every page served crawlers two headlines instead of one.** The
+  no-JavaScript block in the page shell opened with its own `<h1>`, and
+  crawlers — which run no JavaScript — parse that block, so alongside each
+  page's real heading they read a second, site-wide one competing with it.
+  The block now starts a level down, and a new sweep checks every published
+  page for exactly one headline rather than trusting the shell.
+- **The AI/LLM copy of a page can no longer be broken by a code sample that
+  quotes the docs' own syntax.** Inlining an example file is triggered by a
+  directive; a directive shown *inside* a fenced code block — teaching the
+  syntax rather than using it — used to be inlined anyway, which closed the
+  fence early and turned the rest of the sample into headings. Fenced
+  examples are now left as the documentation they are. No page in this repo
+  had one yet; the fix lands before the first one does.
+- **`/healthz` answers per request, and says more.** It now reports which
+  satellite answered, and — where the guardrail package supports it — whether
+  geo-blocking is configured, how many countries are on the list (a count,
+  never the list itself), and which country the request resolved to. The
+  probe used to be computed once when the app started, so anything
+  configured after that point was reported wrong forever; and the FastAPI
+  build, which is what production runs, quietly omitted the build identifier
+  the deploy pipeline verifies against.
+
+### Changed
+- **The AI/SEO package floor rises to dash-improve-my-llms 2.7.1.** It buys
+  the fix for the duplicate headline the prerendered copy used to inject, a
+  deduplicated `/llms.txt` link in the page footer, hardening against a page
+  that merely *mentions* the prerender marker silently losing its prerender,
+  and the llms.txt v2 discovery relations — `rel="alternate"` /
+  `rel="describedby"` plus matching `Link` headers — that give an agent a
+  machine-readable route from any page to that page's prose.
+- **Dependency update pull requests are limited to the packages that
+  matter.** Weekly checks now propose upgrades only for the Dash/Plotly
+  stack, grouped into one review; the remaining floors in `requirements.txt`
+  record minimum-compatibility facts (a CVE, a rendering guarantee) that a
+  mechanical raise would erase. Security updates arrive through their own
+  channel and are unaffected.
+- **The deploy gate waits long enough for the slowest build.** Raising a
+  dependency floor deliberately rebuilds the whole image, so the most
+  important deploy is also the slowest one; the wait is now sized for it,
+  and a deploy that nothing actually triggered says so loudly instead of in
+  passing.
+
 ## [2026-08-22] — the interactive sign-in gate, shipped dark
 
 *Documentation site only; the `dash_mui_scheduler` package is unchanged —

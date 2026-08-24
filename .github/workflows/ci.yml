@@ -112,12 +112,16 @@ jobs:
               return tuple(int(x) for x in v.split(".")[:3] if x.isdigit())
 
           assert parts(dash.__version__)[:2] >= (4, 2), dash.__version__
-          # 2.6.1 is the network floor: below it the universal prerender
-          # ships `hidden` (extractors read "Loading..."), below 2.6.0 the
-          # sitemap silently swallows every real lastmod, below 2.5.1 there
-          # is no configure_seo at all. run.py asserts the same number at
-          # boot — grep the NUMBER, not the file, when this moves.
-          assert parts(pkg.__version__) >= (2, 6, 1), pkg.__version__
+          # 2.7.1 is the network floor: below it the llms.txt v2 discovery
+          # relations + Link headers, the text/plain Accept ramp and the
+          # representation digest are missing; below 2.7.0 every page
+          # serves crawlers a duplicate H1 and a page that MENTIONS the
+          # prerender marker loses its prerender; below 2.6.1 the
+          # prerender ships `hidden` (extractors read "Loading..."), below
+          # 2.6.0 the sitemap silently swallows every real lastmod, below
+          # 2.5.1 there is no configure_seo at all. run.py asserts the same
+          # number at boot — grep the NUMBER, not the file, when this moves.
+          assert parts(pkg.__version__) >= (2, 7, 1), pkg.__version__
           # 2.8.0: on 2.7.0 the network mobile drawer renders as a floating
           # card from byte-identical props.
           assert parts(dmc.__version__) >= (2, 8, 0), dmc.__version__
@@ -199,7 +203,7 @@ jobs:
 
           v = version('dash-improve-my-llms')
           print('dash-improve-my-llms', v)
-          assert parts(v) >= (2, 6, 1), f'expected >=2.6.1 (visible prerender), image has {v}'
+          assert parts(v) >= (2, 7, 1), f'expected >=2.7.1 (llms.txt v2 relations, single H1), image has {v}'
 
           v = version('dash-mantine-components')
           print('dash-mantine-components', v)

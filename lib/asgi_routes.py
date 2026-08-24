@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 import dash
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from pydantic import BaseModel, Field
 
 
@@ -50,14 +50,26 @@ class PageListResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    """The probe contract, identical on every backend.
+
+    ``lib.health.health_payload`` is the single source — this model only
+    types it for Swagger. It used to be built independently here, which is
+    how a FastAPI deployment silently lacked ``build``: cd.yml's build-match
+    wait polls /healthz for exactly that field, so it would have fallen into
+    the "predates the build field" warning path forever, verifying whichever
+    release happened to be serving — the muicharts defect the wait was
+    written to prevent, reintroduced per-backend.
+    """
+
     ok: bool = True
-    app: str = ""
     backend: str
     dash_version: str
-    # The commit the running instance was built from (RENDER_GIT_COMMIT).
-    # Optional so the probe contract is unchanged where it is unset — see
-    # lib/health.health_payload for why CD needs it.
+    # Optional because they are environment-dependent, not backend-dependent:
+    # `build` is RENDER_GIT_COMMIT (absent off Render), `app` is the
+    # satellite key, `geo` needs dash-improve-my-llms >= 2.7.0.
     build: Optional[str] = None
+    app: Optional[str] = None
+    geo: Optional[dict] = None
 
 
 # ---------------------------------------------------------------------------
@@ -106,13 +118,20 @@ def build_health_router() -> APIRouter:
     router = APIRouter(tags=["health"])
 
     @router.get("/healthz", response_model=HealthResponse, summary="Liveness probe")
-    def healthz() -> HealthResponse:
+    def healthz(request: Request) -> HealthResponse:
         from lib.health import health_payload
 
         # Shared with the flask build so the two can never disagree about
         # what a healthy response says — including the `build` field the CD
-        # SHA-wait keys off.
-        return HealthResponse(**health_payload("fastapi"))
+        # SHA-wait keys off. Built PER REQUEST: `geo` reports live state and
+        # this route is mounted long before any geo configuration runs.
+        #
+        # THIS request's headers go with it. geo's `resolved` reads the
+        # country header off the caller, and the Flask-context fallback
+        # inside health_payload can never see a Starlette request — the lane
+        # this app actually runs in production would have answered "no
+        # request context" forever.
+        return HealthResponse(**health_payload("fastapi", headers=request.headers))
 
     return router
 

@@ -187,8 +187,15 @@
     {%css%}
 
     <noscript>
+        <!-- No <h1> in here, deliberately: crawlers run no JavaScript and
+             PARSE noscript content, so an h1 in this block is a second
+             site-wide h1 on EVERY page, competing with each page's own
+             heading. This site served exactly that until the >=2.7.1 floor
+             round's every-page single-h1 pin caught it (2026-08-23); the
+             heading below starts at h2 for that reason, and
+             tests/test_config.py pins it. -->
         <div style="padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 0 auto; line-height: 1.6;">
-            <h1>dash-mui-scheduler</h1>
+            <h2>dash-mui-scheduler</h2>
             <p>A Plotly Dash wrapper for the MUI X Scheduler — <code>EventCalendar</code>,
                <code>EventCalendarPremium</code> and <code>EventTimeline</code>, plus the
                <code>RadialLineChart</code> and <code>RadialBarChart</code> polar charts.
