@@ -31,13 +31,15 @@ evening.*
   examples are now left as the documentation they are. No page in this repo
   had one yet; the fix lands before the first one does.
 - **`/healthz` answers per request, and says more.** It now reports which
-  satellite answered, and — where the guardrail package supports it — whether
+  satellite answered and — where the guardrail package supports it — whether
   geo-blocking is configured, how many countries are on the list (a count,
-  never the list itself), and which country the request resolved to. The
-  probe used to be computed once when the app started, so anything
-  configured after that point was reported wrong forever; and the FastAPI
-  build, which is what production runs, quietly omitted the build identifier
-  the deploy pipeline verifies against.
+  never the list itself), and which country the request resolved to. Two
+  things had to change for those answers to be true rather than merely
+  present: the probe used to be computed once when the app started, so
+  anything configured afterwards would have been reported wrong forever, and
+  the country a request resolves to has to be read from *that* request —
+  which the FastAPI build this site runs in production cannot do unless the
+  route hands its own headers along.
 
 ### Changed
 - **The AI/SEO package floor rises to dash-improve-my-llms 2.7.1.** It buys
@@ -47,12 +49,12 @@ evening.*
   and the llms.txt v2 discovery relations — `rel="alternate"` /
   `rel="describedby"` plus matching `Link` headers — that give an agent a
   machine-readable route from any page to that page's prose.
-- **Dependency update pull requests are limited to the packages that
-  matter.** Weekly checks now propose upgrades only for the Dash/Plotly
-  stack, grouped into one review; the remaining floors in `requirements.txt`
-  record minimum-compatibility facts (a CVE, a rendering guarantee) that a
-  mechanical raise would erase. Security updates arrive through their own
-  channel and are unaffected.
+- **Automated dependency checks, aimed at the packages that matter.** The
+  repo now runs a weekly check, and it proposes version upgrades only for
+  the Dash/Plotly stack, grouped into a single review. The other floors in
+  `requirements.txt` record minimum-compatibility facts (a CVE, a rendering
+  guarantee) that a mechanical raise would erase, so they are left alone.
+  Security updates arrive through their own channel and are unaffected.
 - **The deploy gate waits long enough for the slowest build.** Raising a
   dependency floor deliberately rebuilds the whole image, so the most
   important deploy is also the slowest one; the wait is now sized for it,
