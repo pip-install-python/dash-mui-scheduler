@@ -20,10 +20,10 @@ the component + docs, destined for PyPI (`pip install dash-mui-scheduler`).
   alias line (render.yaml sets `MUI_X_LICENSE_KEY` directly). Blank just degrades Premium
   components to a watermark.
 - **Backends:** `lib/backend.resolve_backend()` honors `DASH_BACKEND` > `BACKENDS` > `BACKEND`.
-  Verify behavior on flask (`DASH_BACKEND=flask PORT=8560 python run.py`), and separately
+  Verify behavior on flask (`DASH_BACKEND=flask PORT=8598 python run.py`), and separately
   confirm the fastapi build: `DASH_BACKEND=fastapi python -c "import run; print('ok')"`.
 - **Restart to see changes:** server is `debug=False`. `pkill -9 -f run.py` + free the port:
-  `for pid in $(lsof -ti:8560); do kill -9 $pid; done`.
+  `for pid in $(lsof -ti:8598); do kill -9 $pid; done`.
 - **Don't commit/push unless asked.** Branch first if on the default branch. Commit footer: use
   the CURRENT harness's required footer.
 - **Keep `CHANGELOG.md` accurate as a LEDGER (owner rule):** every shipped feature/fix gets a
@@ -45,11 +45,12 @@ shipped to the docs site only.)
 - `docs/<page>/<page>.{md,py}` — each doc page: markdown frontmatter (`name`, `endpoint`,
   `category`, `icon`, `lastmod`, optional `tier`/`llms_public`/`schema_type`) +
   `.. exec::docs.<page>.<page>` runs the `.py` (which sets `component = ...` and registers
-  callbacks). See `.claude/rules/docs-pages.md` when editing. **`lastmod` is a REAL content
-  date** — it is emitted verbatim as the sitemap `<lastmod>`; never script it from mtimes.
+  callbacks). **`lastmod` is a REAL content date** — it is emitted verbatim as the sitemap
+  `<lastmod>`; never script it from mtimes.
 - `lib/` — site plumbing: `backend.py` (backend resolution), `constants.py`,
   `analytics_tracker.py`, `asgi_middleware.py`/`asgi_routes.py` (fastapi), `directives/*`
-  (kwargs/source/toc renderers), `clerk_webhook.py`.
+  (kwargs/source/toc renderers), `clerk_webhook.py`, `versions.py` (the `{{VERSION:...}}`
+  substitution both content lanes run).
 - **The interactive gate** (batch-2 gate wave, 2026-08-22 — shipped DARK): `auth.py` is the
   single source of truth for "is auth on" and owns BOTH wiring halves —
   `register()` before `Dash(...)` and `configure_app(app)` after. Ship one without the other
@@ -62,11 +63,13 @@ shipped to the docs site only.)
   The flip is env-only: `PAGE_DEFAULT_TIER=auth`.
 - `components/` — `appshell.py`, `header.py` (Clerk avatar + toggle burger), `navbar.py`
   (Scheduler + Radial sections, `create_mobile_content` drawer), `backend_badge.py`.
-- `pages/` — `home.py` (landing), `markdown.py` (docs loader, gated registration),
-  `control_board.py` (`/admin/control-board`, fails closed), `not_found_404.py` (plain DMC).
-- `run.py` — entrypoint (PORT env). `Dockerfile`/`render.yaml` — fastapi Render deploy at
-  **`https://muischeduler.2plot.dev`** (custom domain; the service's own `*.onrender.com` URL
-  301s there via `lib/canonical_host.py` once `CANONICAL_HOST_REDIRECT=1`).
+- `pages/` — `home.py` (landing, plain DMC — this site has no `home.md`), `markdown.py` (docs
+  loader, gated registration), `control_board.py` (`/admin/control-board`, fails closed),
+  `not_found_404.py` (plain DMC).
+- `run.py` — entrypoint (PORT env, default 8598). `Dockerfile`/`render.yaml` — fastapi Render
+  deploy at **`https://muischeduler.2plot.dev`** (custom domain; the service's own
+  `*.onrender.com` URL 301s there via `lib/canonical_host.py` once
+  `CANONICAL_HOST_REDIRECT=1`).
 
 ## 2plot network standard (retrofit 2026-08-01)
 This repo follows the satellite standard
@@ -85,16 +88,21 @@ This repo follows the satellite standard
 - **Internal traffic**: UAs carrying `2plot-internal` are dropped at write time in
   `lib/analytics_tracker`; every outbound network call sends `internal_ua(caller)`.
 - **CI/CD**: `.github/workflows/ci.yml` (lint+actionlint, secretless pytest on
-  flask+fastapi, docker build→fingerprints→boot→battery, advisory pip-audit);
+  flask+fastapi, docker build→fingerprints→boot→health verdict→battery, advisory pip-audit);
   `cd.yml` owns main (sustained health, then `scripts/network_smoke.py` +
   `scripts/smoke_live.py` against the live host). `markdown2dash` installs
   `--no-deps` everywhere (its gunicorn<22 pin vs our >=23 floor).
 - **Tests are secretless by design** — `tests/conftest.py` pins every secret empty
   before run.py imports; run `DASH_BACKEND=flask python -m pytest tests -q`.
+- **One fleet Python**: `python:3.14-slim` in the Dockerfile is the single declaration;
+  the CI matrix, cd.yml's verify job and `/healthz`'s `python` field follow it, and
+  `tests/test_python_version.py` holds them together. This service is Render's DOCKER
+  runtime, so `render.yaml` carries no `PYTHON_VERSION` — the image is the runtime
+  (recorded in `DIVERGENCES.md`).
 
 ## Run + verify recipe
 ```bash
-DASH_BACKEND=flask PORT=8560 nohup python run.py >/tmp/srv.log 2>&1 &
+DASH_BACKEND=flask PORT=8598 nohup python run.py >/tmp/srv.log 2>&1 &
 # then: curl the doc pages / drive with headless Playwright
 DASH_BACKEND=fastapi python -c "import run; print('ok')"   # build check
 ```
@@ -108,6 +116,10 @@ In a sandbox that blocks sockets, render in-process instead:
   at page load, so import-time errors break the whole site — self-validate by importing.
 - The `.. kwargs::dash_mui_scheduler.<Component>` directive renders the prop table from the
   generated wrapper docstrings; `PROPS_TO_EXCLUDE` in `lib/constants.py` filters style props.
+- **Version claims are never typed.** Prose writes `{{VERSION:<distribution>}}` and
+  `lib/versions.substitute_versions` fills it from the installed package — in the docs lane
+  (`pages/markdown.py`) *and* on the root `llms_doc` in `run.py`, which is this site's
+  home-lane equivalent. A hardcoded number is a lie waiting for the next release.
 - `MUI_X_LICENSE_KEY` flows to examples via `licenseKey` — never hard-code a license string.
 - **Host moves:** change `APP_BASE_URL` only — never a literal host in code/template. Order:
   attach the domain in Render → DNS CNAME verified → confirm it serves → flip `APP_BASE_URL`
@@ -121,10 +133,79 @@ In a sandbox that blocks sockets, render in-process instead:
   dash-improve-my-llms' own prerendered HTML, not the SPA shell; `run.py` patches canonical
   and `og:image` into it.
 
-## .claude/ scaffold
+## Local scaffold under `.claude/`
+Only the shipped kit is tracked (`.gitignore` allow-lists `CLAUDE.md`, `settings.json` and
+`skills/`). Everything else here is local to a clone:
 - **`migration/`** — the 2plot network split packet (HANDOFF → MIGRATION-CHECKLIST →
   OWNER-ACTIONS → PLAN). Read HANDOFF.md first if you're picking up split work.
-- **`workflows/scheduler-docs-content.js`** — the saved doc-generation workflow
-  (`/scheduler-docs-content`): writes doc pages in parallel, one agent per page.
-- **`rules/docs-pages.md`** — path-scoped guidance for `docs/**`.
-- **`hooks/syntax-check.sh`** + `settings.json` — advisory PostToolUse syntax check.
+- `.pypirc` — the PyPI upload credential. Never committable; the allow-list is what
+  guarantees that structurally.
+
+---
+
+## Network role & the behavioral contract
+
+This repo is a member of the 2plot network — either the template
+itself (dash-documentation-boilerplate) or a fork of it serving one
+component's documentation. **Identity derives from the repo, never
+from this file**: the app key comes from `SATELLITE_APP_KEY` and
+run.py's fork point, the host from `lib/constants.py`'s `BASE_URL`,
+the deliberate differences from the template from `DIVERGENCES.md`
+at the repo root. If those disagree with anything written here,
+they win.
+
+### The contract — every session, every prompt
+
+1. **Check the prompt against this tree before executing.** Prompts
+   are written from the template's perspective and your fork may
+   legitimately differ — floors, backends, payload shapes, page
+   sets. A prompt step that doesn't fit this repo is a finding to
+   return, not an instruction to force.
+2. **Corrections are your job, not scope creep.** If a prompt's
+   reference list doesn't match its steps, if its assumed state is
+   wrong, or if executing it as written would produce a
+   green-but-vacuous result, say so and propose the corrected
+   version before running it.
+3. **Verify your own deploy on the wire before reporting.** A push
+   is not a result. Run `/wire-verify` (or its manual equivalent)
+   against production and paste what came back. If your sandbox
+   cannot reach your own domain, say exactly that — an unverified
+   claim marked as unverified is honest; the same claim unmarked is
+   not.
+4. **Report observed versus expected, with evidence.** Paste the
+   JSON, the status code, the test count. "Should work" and summary
+   claims without artifacts are not reports.
+5. **Divergence is legitimate when written down.** Before syncing
+   template changes, read `DIVERGENCES.md`; never let a sync
+   "restore" a recorded deliberate difference. When you deliberately
+   diverge, record it there in the same commit — an unrecorded
+   divergence is indistinguishable from drift and will be treated
+   as drift.
+6. **Never touch**: environment variable VALUES, hosting dashboards,
+   secrets, other repos' trees, or anything the prompt didn't put in
+   scope. Enumerate what you cannot do (closing PRs, dashboard
+   steps) for the owner instead of claiming it done.
+
+### Verification traps (fleet-learned, keep them)
+
+- A `>=` floor can never pull a new release through a Docker cache
+  hit — the requirements line changing IS the cache bust, and floors
+  live in several encodings (requirements, run.py's boot floor,
+  tests, CI): grep the number, move every one.
+- `/healthz` build == HEAD is the deploy proof; a missing geo block
+  on dimll ≥2.7 means the cache trap fired (unless DIVERGENCES.md
+  says this host's healthz is deliberately minimal).
+- Probe with GET, not HEAD — HEAD responses omit the Link headers.
+- Run-watchers keyed on a commit sha can match Dependabot's runs on
+  the same sha — key on the workflow path (cd.yml) instead.
+- The browser lane and the machine lane are different documents;
+  a fix proven on one is unproven on the other.
+- A bot-merged PR — any GITHUB_TOKEN merge — lands with ZERO
+  workflow runs on the merge sha (anti-recursion) yet still reaches
+  production: the deploy hook builds branch HEAD, so an in-flight
+  CD run ships the merge while its own build-match wait holds out
+  for the superseded release sha. Observed live on 4a1d430
+  (2026-08-25). Since 1.6.25 the wait fails FAST on this (live
+  build a descendant of the wanted sha, via the compare API)
+  instead of going red at timeout, and the remedy is policy —
+  actions PRs: human merge when green; never a bot actor on main.

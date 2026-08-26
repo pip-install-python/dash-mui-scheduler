@@ -5,6 +5,11 @@
 # setup.py only reads package.json — so `pip install -e .` works without npm.
 # TRADE-OFF: changes under src/lib/components require a local `npm run build`
 # and committing the regenerated artifacts (the image no longer self-builds).
+# ONE fleet Python, declared once. MINOR tag on purpose: a `3.X.Y-slim`
+# pin never receives 3.X security releases, so the patch pin IS the bug.
+# This service is Render's DOCKER runtime — the image is the whole runtime
+# declaration, there is no dashboard PYTHON_VERSION to drift from it — and
+# tests/test_python_version.py holds the CI matrix and cd.yml to this line.
 FROM python:3.14-slim
 
 # PYTHONUNBUFFERED is load-bearing: without it Python block-buffers stdout to
@@ -55,6 +60,20 @@ RUN pip install --no-cache-dir -e .
 # render.yaml / the dashboard (NEVER bake .env — see .dockerignore).
 ENV DASH_BACKEND=fastapi
 EXPOSE 8598
+
+# Docker's own verdict on whether this container is serving. Without it
+# `docker inspect` reports health "none" and the container is opaque to its
+# orchestrator — an external curl proves the APP answers, never that the
+# HEALTHCHECK instruction does (emojimart's finding; ci.yml now polls this
+# verdict and fails on `none`).
+#
+# A python-urllib probe, not the template's curl: this image installs no apt
+# packages at all (no node toolchain, no curl), and adding an apt layer to
+# run one probe would cost more than the probe. ${PORT:-8598} matches the
+# CMD below exactly — a bare ${PORT} collapses the probe the moment the
+# variable is set empty.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8598')+'/healthz',timeout=4).read()" || exit 1
 
 # The websocket-callback transport is disabled app-side (run.py turns off the
 # FastAPI backend's websocket capability — no WS route is registered). Keep

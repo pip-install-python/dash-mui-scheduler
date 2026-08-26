@@ -255,6 +255,7 @@ from lib.constants import (
     OG_IMAGE_ALT, OG_IMAGE_HEIGHT, OG_IMAGE_URL, OG_IMAGE_WIDTH,
     PUBLISHER, SAME_AS, SITE_BRAND, SITE_DESCRIPTION, require_owned_base_url,
 )
+from lib.versions import substitute_versions
 
 # Refuse to boot in production with an unset or platform-generated base URL —
 # every canonical/og/sitemap URL would advertise the wrong host, silently.
@@ -389,7 +390,15 @@ register_page_metadata(
     # name "Home" is deliberately generic so this one is load-bearing.
     name=SITE_BRAND,
     description=SITE_DESCRIPTION,
-    llms_doc=(
+    # Run through substitute_versions like every other served document.
+    # This site has no home.md — the root's machine-lane prose is this
+    # string — so pages/markdown.py's substitution never touches it, and a
+    # `{{VERSION:...}}` written here would ship RAW on /llms.txt, the
+    # most-read machine surface the site has. The docs lane and the home
+    # lane must substitute the same things; tests/test_site_identity.py
+    # pins both call sites by AST (a comment naming the call satisfies a
+    # grep on a file that never runs it).
+    llms_doc=substitute_versions(
         "# dash-mui-scheduler — MUI X scheduling for Dash\n\n"
         "A Plotly Dash component library wrapping the MUI X Scheduler.\n\n"
         "Install: `pip install dash-mui-scheduler`\n\n"
@@ -402,7 +411,8 @@ register_page_metadata(
         "/event-calendar, /playground, /events, /resources, /views, /navigation, "
         "/responsive, /drag-resize, /editing, /preferences, /recurrence, "
         "/event-timeline, /localization, /radial-lines, /radial-bars, "
-        "/radial-axes."
+        "/radial-axes.",
+        source="run.py llms_doc",
     ),
     # This page IS the package's landing page, not an article about one.
     # SoftwareApplication is what puts the install line and the component

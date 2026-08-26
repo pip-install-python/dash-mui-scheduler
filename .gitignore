@@ -22,8 +22,37 @@ venv/
 .idea/
 *.swp
 
-# Claude Code scaffold (local agent config — not part of the published project)
-.claude/
+# =====================================================================
+# Claude Code
+# =====================================================================
+# The .claude/ development kit IS shipped — it is how every clone of this
+# repo, and every session in it, inherits the 2plot network's behavioral
+# contract, skills and sandbox settings (the F1 fabric build, 2026-08-24).
+# The blanket `.claude/` ignore that stood here kept all of it local-only,
+# so the contract reached nobody. Allow-list, not blanket ignore: a
+# directory-level ignore cannot be re-included beneath it, hence the /*
+# form. Everything NOT listed stays local — this repo's `migration/` split
+# packet, the `.pypirc` upload credential, session scratch, screenshots and
+# settings.local.json (per-seat model overrides).
+.claude/*
+!.claude/CLAUDE.md
+!.claude/settings.json
+!.claude/skills/
+
+# Handoff notes for work that belongs in ANOTHER repo — the kickoff docs
+# that start a session elsewhere. Local scratch by design: a task list for
+# 2plot.dev or the hub has no business in this checkout.
+kickoff/
+
+# Session working documents are LOCAL BY CONVENTION, network-wide: sync
+# reports, handoffs and kickoff briefs name hosts, topology and process. Two
+# public fleet repos were caught tracking theirs (2026-08-24). This repo's
+# X402-SYNC-REPORT.md was held back by .git/info/exclude — a per-clone rule
+# that protects one checkout and no fork, which is why the rule belongs
+# here instead.
+X402-SYNC-REPORT.md
+HANDOFF-*.md
+KICKOFF-*.md
 
 # Env
 .env

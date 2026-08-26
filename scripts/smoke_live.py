@@ -141,7 +141,7 @@ def post(url: str, payload: str = "{}") -> int:
     )
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT,
-                                    context=_ssl_context()) as resp:
+                                    context=SSL_CONTEXT) as resp:
             return resp.status
     except urllib.error.HTTPError as exc:
         return exc.code

@@ -64,6 +64,11 @@ class HealthResponse(BaseModel):
     ok: bool = True
     backend: str
     dash_version: str
+    # The serving interpreter (platform.python_version()) — required, not
+    # Optional: every process has one, and an absent field is exactly the
+    # invisibility that lets an image and its declaration drift apart
+    # (ops-seat finding, 2026-08-25).
+    python: str
     # Optional because they are environment-dependent, not backend-dependent:
     # `build` is RENDER_GIT_COMMIT (absent off Render), `app` is the
     # satellite key, `geo` needs dash-improve-my-llms >= 2.7.0.

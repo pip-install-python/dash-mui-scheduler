@@ -10,6 +10,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+*Documentation site and repository plumbing only; the `dash_mui_scheduler`
+package is unchanged — PyPI still carries 1.0.0.*
+
+### Added
+- **The repo now ships the development kit every 2plot site shares.** Anyone
+  who clones it — or points an AI coding assistant at it — inherits the same
+  project guide, the same three workflow skills, and the same sandbox
+  settings the rest of the network runs, instead of nothing. A companion
+  `DIVERGENCES.md` records, with reasons, the five places this repo
+  deliberately differs from the template it was forked from, so a future
+  sync cannot quietly "fix" a decision that was made on purpose.
+- **The container now tells Docker whether it is healthy.** The image had no
+  health probe at all, so the platform running it could only see "the
+  process is alive", never "the site is answering" — and CI now fails the
+  build if that probe is missing or broken, rather than trusting an
+  external check that proves something else.
+- **`/healthz` reports which Python is serving.** Combined with the checks
+  below, an operator can tell from the outside whether the running image is
+  the one this repo declares — a mismatch that was previously invisible.
+
+### Changed
+- **One Python, everywhere it is written down.** The image moved to 3.14
+  on its own; the test matrix, the release lane and the deploy verifier were
+  left behind on 3.12, so the version this site was tested and released on
+  was not the version it shipped. They now all say 3.14, the supported
+  window follows the image rather than sitting still, and a test holds every
+  place the interpreter is written down to a single answer.
+- **Automatic dependency PRs stop proposing minimum-version bumps.** Those
+  minimums encode compatibility and security facts that a bump erases while
+  adding nothing — the installer already picks the newest release above
+  them. Security advisories are unaffected; they arrive on their own
+  channel.
+- **Version numbers in the site's AI/LLM home document are now derived, not
+  typed.** The docs pages already worked this way; the home document was the
+  one served surface that would have published whatever number someone last
+  wrote by hand.
+
+### Fixed
+- **The sign-in card no longer advertises an AI assistant this site does not
+  have.** It promised one to every visitor who hit a gated page — the
+  network's credibility spent at its highest-intent moment.
+- **A deploy that never happened can no longer be reported as verified.**
+  When the deploy step is skipped, the verification job now stands down
+  instead of certifying whichever release happened to still be live.
+- **The live-site probe reuses one TLS context.** A source-level check now
+  holds it there: the variant it replaced fails only on operators' own
+  machines, where it reads as a broken sign-in wiring rather than a TLS
+  problem.
+
 ## [2026-08-23] — one headline per page, and a health probe that answers
 
 *Documentation site only; the `dash_mui_scheduler` package is unchanged —

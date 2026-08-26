@@ -19,6 +19,7 @@ reported back as this app being slow.
 from __future__ import annotations
 
 import os
+import platform
 
 import dash
 
@@ -57,7 +58,20 @@ def _resolved_country(headers=None) -> str:
 
 
 def health_payload(backend: str, headers=None) -> dict:
-    payload = {"ok": True, "backend": backend, "dash_version": dash.__version__}
+    payload = {
+        "ok": True,
+        "backend": backend,
+        "dash_version": dash.__version__,
+        # WHICH interpreter is actually serving. Before this field a repo
+        # could declare three different Pythons (image, CI matrix, platform
+        # runtime) and nothing on the wire could contradict any of them —
+        # the drift was invisible to the battery by construction (ops-seat
+        # finding, 2026-08-25). scripts/network_smoke.py asserts this minor
+        # against the Dockerfile's FROM tag, so on THIS repo — a Render
+        # DOCKER service, where the image IS the runtime declaration — the
+        # image and its declaration can no longer part ways silently.
+        "python": platform.python_version(),
+    }
     # Which commit the RUNNING instance was built from. This is what lets CD
     # verify the artifact it shipped rather than whichever build happens to
     # be serving: this service has a disk, so it RESTARTS with a blip

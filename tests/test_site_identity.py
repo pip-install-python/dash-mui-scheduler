@@ -56,7 +56,10 @@ def test_home_llms_doc_opens_with_the_brand():
     need it).
     """
     source = (REPO_ROOT / "run.py").read_text()
-    match = re.search(r'llms_doc=\(\s*"((?:[^"\\]|\\.)*)"', source)
+    # `llms_doc=` may be a bare parenthesised literal or wrapped in the
+    # versions pipeline (`llms_doc=substitute_versions(`) — either way the
+    # first string chunk after the opening paren is the H1.
+    match = re.search(r'llms_doc=\w*\(\s*"((?:[^"\\]|\\.)*)"', source)
     assert match, "run.py no longer registers an inline llms_doc for the home page"
     assert match.group(1).startswith(f"# {EXPECTED_BRAND}"), (
         f"the home llms_doc opens {match.group(1)[:60]!r}, not the brand H1"
@@ -213,3 +216,43 @@ def test_no_surface_still_carries_the_old_display_name():
         if "MUI X Scheduler for Plotly Dash" in text:
             offenders.append(path)
     assert offenders == [], f"the old display name survives in {offenders}"
+
+
+def test_both_content_lanes_run_the_versions_pipeline():
+    """The docs lane and the home lane agree on the content pipeline.
+
+    Upstream this pin reads `pages/home.py`, because the template's home is
+    markdown and /llms.txt serves home.md's text. This site's home is a
+    hand-written DMC page with no markdown at all — its root machine-lane
+    prose is the `llms_doc=` string in run.py — so run.py is where the home
+    half of the contract lives here. A `{{VERSION:...}}` written into that
+    string without the call would ship RAW on /llms.txt, the most-read
+    machine surface the site has.
+
+    AST, not grep — the marker-in-comment trap cuts both ways: a comment
+    naming the call would satisfy a grep on a file that never runs it.
+    """
+    import ast
+
+    for rel in ("run.py", "pages/markdown.py"):
+        tree = ast.parse((REPO_ROOT / rel).read_text(encoding="utf-8"))
+        called = any(
+            isinstance(node, ast.Call)
+            and "substitute_versions"
+            in (getattr(node.func, "id", ""), getattr(node.func, "attr", ""))
+            for node in ast.walk(tree)
+        )
+        assert called, (
+            f"{rel} never calls substitute_versions — its lane serves "
+            "version tokens raw"
+        )
+
+
+def test_no_version_token_reaches_the_machine_lane(client):
+    """The wire half. Vacuous on the day no served prose happens to carry a
+    token — which is exactly why the source pin above ships with it, not
+    instead of it."""
+    for path in ("/llms.txt", "/quickstart/llms.txt"):
+        body = client.get(path).text
+        for token in ("{{VERSION:", "{{DIMLL_VERSION}}"):
+            assert token not in body, f"{path} serves a raw {token} token"

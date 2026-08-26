@@ -119,14 +119,18 @@ jobs:
   verify:
     name: verify the live site
     needs: [deploy]
-    if: always() && needs.deploy.result != 'cancelled'
+    # Excludes 'skipped' as well as 'cancelled': a skipped deploy job means
+    # nothing was shipped, and verifying the PREVIOUS release against this
+    # run's expectations reads as a green certification of an artifact this
+    # run never produced (muicharts' skipped-guard, 1.6.16).
+    if: always() && needs.deploy.result != 'cancelled' && needs.deploy.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       # The network battery first: the same script, with the same check
       # names, that CI ran against the container this deploy shipped. A name

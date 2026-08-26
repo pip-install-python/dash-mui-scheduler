@@ -91,6 +91,12 @@ def wired(battery, client, monkeypatch):
         return response.status, dict(response.headers), response.raw
 
     monkeypatch.setattr(battery, "fetch_raw", fetch_raw)
+    # The suite legitimately runs on the adjacent matrix legs, and the
+    # in-process app serves on THIS interpreter — never a deploy artifact.
+    # Holding it against the Dockerfile's FROM tag would fail the battery
+    # for being run correctly. The seats that leave the check armed are the
+    # docker container in CI and production in CD.
+    monkeypatch.setattr(battery, "declared_python_minor", lambda: None)
     monkeypatch.setattr(battery, "_RESULTS", [])
     battery.seen_agents = seen_agents
     return battery

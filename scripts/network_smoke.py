@@ -197,6 +197,38 @@ def expect(cond: bool, msg: str) -> None:
 
 # ------------------------------------------------------------- the battery --
 
+def declared_python_minor():
+    """The fleet Python this checkout declares: the Dockerfile's FROM minor.
+
+    This service is Render's DOCKER runtime, so the image IS the runtime
+    declaration — there is no dashboard PYTHON_VERSION to disagree with it,
+    and the Dockerfile is therefore the only source worth holding the host
+    against.
+
+    None when there is nothing to compare — no Dockerfile beside this script
+    (the script run outside a checkout) — or when the seat itself is
+    off-contract: SMOKE_PYTHON_DECLARED=ignore is set by ci.yml's matrix
+    boot step, whose server deliberately runs the LEG's interpreter, and
+    tests/test_network_smoke.py's in-process seat is the same case. The
+    seats that leave it armed are exactly the ones whose interpreter is a
+    deploy artifact: the docker container in CI, and production in CD.
+    """
+    if os.environ.get("SMOKE_PYTHON_DECLARED") == "ignore":
+        return None
+    dockerfile = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "Dockerfile")
+    try:
+        with open(dockerfile, encoding="utf-8") as fh:
+            for line in fh:
+                m = re.match(r"FROM\s+python:(\d+\.\d+)", line)
+                if m:
+                    return m.group(1)
+    except OSError:
+        pass
+    return None
+
+
 def satellite_checks(base: str) -> None:
     get = lambda path, **kw: fetch(base + path, **kw)  # noqa: E731
 
@@ -204,6 +236,27 @@ def satellite_checks(base: str) -> None:
         status, _, text = get("/healthz")
         expect(status == 200, f"/healthz {status}")
         expect(json.loads(text).get("ok") is True, f"unexpected body {text[:120]!r}")
+
+    def python_matches_declared():
+        # WHICH interpreter serves, versus the one this repo declares. An
+        # image tag, a CI matrix and a platform runtime can name three
+        # different Pythons for months because nothing on the wire can
+        # contradict any of them — /healthz's `python` field is the
+        # observability, and this check is the teeth: the served minor must
+        # equal the Dockerfile's FROM minor. A seat with no declaration to
+        # compare falls back to field presence alone.
+        status, _, text = get("/healthz")
+        expect(status == 200, f"/healthz {status}")
+        served = json.loads(text).get("python") or ""
+        expect(bool(served), "/healthz carries no `python` field — the "
+               "serving interpreter is invisible (pre-1.6.27 build?)")
+        declared = declared_python_minor()
+        if declared is None:
+            return
+        served_minor = ".".join(served.split(".")[:2])
+        expect(served_minor == declared,
+               f"host serves Python {served}, repo declares {declared} — "
+               "a stale image, or a platform runtime nobody aligned")
 
     def llms_txt_identity():
         # The check this whole standard exists for. The H1 is what an agent
@@ -378,6 +431,7 @@ def satellite_checks(base: str) -> None:
 
     for name, fn in (
         ("healthz_ok", healthz_ok),
+        ("python_matches_declared", python_matches_declared),
         ("llms_txt_identity", llms_txt_identity),
         ("llms_txt_names_the_hub", llms_txt_names_the_hub),
         ("page_llms_nav", page_llms_nav),
