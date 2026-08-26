@@ -10,8 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-08-26] — the kit every site shares, and one Python everywhere
+
 *Documentation site and repository plumbing only; the `dash_mui_scheduler`
-package is unchanged — PyPI still carries 1.0.0.*
+package is unchanged — PyPI still carries 1.0.0. Shipped as `b3ecf3f` and
+deployed the same day.*
 
 ### Added
 - **The repo now ships the development kit every 2plot site shares.** Anyone
