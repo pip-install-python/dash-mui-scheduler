@@ -10,6 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-08-27] — the same icons for everyone, and a battery that waits
+
+*Documentation site and repository plumbing only; the `dash_mui_scheduler`
+package is unchanged — PyPI still carries 1.0.0. Shipped as `0e00207` and
+deployed the same day.*
+
 ### Fixed
 - **The icons search engines were offered and the icons your browser was
   offered are the same set again.** Google was shown six sizes up to

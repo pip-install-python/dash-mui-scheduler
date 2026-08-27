@@ -78,7 +78,12 @@ boundary between design and drift:
    when the hub bulletin is unwired, which the template does not carry.
    Everything else — the wake loop, the retry ladder, the SSL context,
    the crawler/browser identity parity block — tracks the template
-   verbatim and should be ported whenever it moves. The path is fenced
+   verbatim and should be ported whenever it moves, with one addition:
+   the Clerk bootstrap token that gates the auth probe is a named
+   constant, `CLERK_BOOTSTRAP_MARKER`, where the template inlines the
+   string. `tests/test_auth_wiring.py` imports it and pins it against
+   the branch `lib/auth.py` actually emits — spec item 7's class, whose
+   render-with-fake-config half remains open. The path is fenced
    `byte-owned` below so no fan-out can decide otherwise.
 
 7. **`scripts/network_smoke.py` passes a certifi SSL context to
