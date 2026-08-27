@@ -36,6 +36,7 @@ import argparse
 import json
 import os
 import re
+import ssl
 import sys
 import time
 import urllib.error
@@ -126,6 +127,27 @@ class SmokeFailure(Exception):
     pass
 
 
+def _ssl_context() -> ssl.SSLContext:
+    """Verify certificates via certifi when available.
+
+    macOS Python ships without OS trust-store integration, so bare urllib
+    fails every https fetch with CERTIFICATE_VERIFY_FAILED — and this
+    battery reads that as the host being DOWN: every check 0, a healthy
+    site declared dead from a laptop. Linux CI never sees it, which is
+    exactly why it survived here. Same fix, same shape, as smoke_live.py's;
+    verification stays ON either way, certifi only supplies the CA bundle.
+    """
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+SSL_CONTEXT = _ssl_context()
+
+
 def fetch_raw(url: str, ua: str = UA, method: str = "GET",
               body: bytes | None = None, headers: dict | None = None,
               timeout: int = TIMEOUT, retries: int = 3):
@@ -149,7 +171,9 @@ def fetch_raw(url: str, ua: str = UA, method: str = "GET",
         for k, v in (headers or {}).items():
             req.add_header(k, v)
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with urllib.request.urlopen(
+                req, timeout=timeout, context=SSL_CONTEXT
+            ) as r:
                 return (r.status, {k.lower(): v for k, v in r.headers.items()},
                         r.read())
         except urllib.error.HTTPError as e:

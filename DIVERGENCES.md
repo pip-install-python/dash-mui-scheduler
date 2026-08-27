@@ -66,6 +66,33 @@ boundary between design and drift:
    `ClaudeBot` stanza ever appears). See `run.py`'s `configure_seo`
    call for the reasoning in full.
 
+6. **`scripts/smoke_live.py` is a PORT of the template's, never a
+   byte-copy.** Spec 1.6.22-1.6.29 item 6 reclassed the file
+   contract-class at template 1.6.29 for a different reason (fork-owned
+   test stubs pin its interface); here there is a second, harder reason:
+   two checks in the list are this host's. The robots block asserts the
+   `ChatGPT-User` / `PerplexityBot` rows and the ABSENCE of a `ClaudeBot`
+   stanza — divergence 5 — where the template asserts
+   `ClaudeBot -> Disallow: /`, so a byte-copy of the template's file
+   fails on a correctly-configured host. The second is a non-fatal WARN
+   when the hub bulletin is unwired, which the template does not carry.
+   Everything else — the wake loop, the retry ladder, the SSL context,
+   the crawler/browser identity parity block — tracks the template
+   verbatim and should be ported whenever it moves. The path is fenced
+   `byte-owned` below so no fan-out can decide otherwise.
+
+7. **`scripts/network_smoke.py` passes a certifi SSL context to
+   `urlopen`; the template still calls it bare.** Ahead of the template,
+   not behind it: directed fleet-wide by the ops seat on 2026-08-26,
+   the same fix `smoke_live.py` already carried. Without it, any Python
+   without OS trust-store integration (macOS — the fleet's whole
+   local-dev half) fails every https handshake and the battery reports
+   a healthy host as DOWN, every check zero. Linux CI cannot see it and
+   no wired test can (they patch the transport), so
+   `tests/test_network_smoke.py::test_the_batterys_urlopen_carries_the_ssl_context`
+   holds the line from the source. Retire this entry when the template
+   adopts the same context.
+
 ## Retired
 
 - ~~**`dependabot.yml` runs no `npm` ecosystem.**~~ RETIRED
@@ -103,7 +130,20 @@ divergence above makes a byte-level claim on any of them. Divergence
 1 names `release.yml` and divergence 2 names
 `tests/test_python_version.py` — neither is a sync-verbatim path
 (both are session-class by their specs), so neither becomes an
-entry. The block is EMPTY by decision, not by omission.
+entry.
+
+RE-AUDITED 2026-08-26 at template 1.6.29, and the block is no longer
+empty. `scripts/smoke_live.py` rode the block for exactly one release
+(1.6.28) before 1.6.29 pulled it back out; the fence entry below is
+belt-and-braces, and it is the one path here where a byte-copy is
+KNOWN to land red rather than merely suspected — divergence 6 has the
+proof. Nothing else changed: the six paths above remain the
+template's to update mechanically.
 
 ```yaml byte-owned
+# Contract-class, not verbatim (spec item 6): the transport half is the
+# template's and gets ported when it moves, but the CHECK LIST carries
+# divergence 5's robots posture — a byte-copy asserts a ClaudeBot
+# stanza this host deliberately does not emit and fails a healthy site.
+- scripts/smoke_live.py
 ```

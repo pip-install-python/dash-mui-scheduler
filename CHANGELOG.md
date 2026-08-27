@@ -10,6 +10,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- **The icons search engines were offered and the icons your browser was
+  offered are the same set again.** Google was shown six sizes up to
+  512×512; a browser loading the same page was shown three, topping out at
+  180×180. Both heads now declare the identical set, so the icon a tab, a
+  bookmark or a search result picks comes from one answer rather than two.
+- **The post-deploy battery reads a healthy site as healthy from a Mac.**
+  Its network calls now verify certificates through the same bundle the rest
+  of the tooling uses; without it, every request failed in the TLS handshake
+  and the report said the site was down when it was up. (Continuous
+  integration never saw this — only laptops.)
+
+### Changed
+- **A sleeping site no longer fails its own deployment check.** The battery
+  now waits for the host to answer before asserting anything about it, and
+  retries a dropped connection or a momentary 5xx instead of recording a
+  check that never ran. One unreachable host is reported once, not forty
+  times.
+- **Deploy checks that only ran in the cloud now run before the push.** The
+  crawler-versus-browser identity comparison — the check that caught the
+  icon defect above — runs against the app in the test suite, so this class
+  of drift is caught locally instead of by a red deployment.
+
 ## [2026-08-26] — the kit every site shares, and one Python everywhere
 
 *Documentation site and repository plumbing only; the `dash_mui_scheduler`

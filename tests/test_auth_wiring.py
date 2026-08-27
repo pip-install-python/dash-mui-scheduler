@@ -94,3 +94,34 @@ def test_smoke_live_post_passes_the_ssl_context():
         f"urlopen without context=SSL_CONTEXT in smoke_live.py: {naked} — "
         "on macOS this dies in the handshake and reads as missing auth wiring"
     )
+
+
+def test_the_batterys_clerk_marker_is_the_one_auth_py_emits():
+    """The gate on the live auth probe must track what CONFIGURED renders.
+
+    ``smoke_live.py``'s auth-wiring checks run only when the served shell
+    contains the Clerk bootstrap marker — right, because a clerk-off host
+    must skip rather than fail, and dangerous, because a skip prints
+    nothing. Rename the token in ``lib/auth.py``'s configured branch and the
+    battery would quietly stop testing auth on a live gated site.
+
+    Sync spec SYNC-1.6.22-1.6.29 item 7's class (found on clerkhook): every
+    fleet battery boots zero-secret, so a page that renders differently once
+    secrets are present has its configured branch certified by nothing. The
+    marker is IMPORTED from the tool rather than retyped here — a copy in the
+    test is one more thing to drift.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "smoke_live_marker", ROOT / "scripts" / "smoke_live.py"
+    )
+    smoke = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(smoke)
+
+    emitted = (ROOT / "lib" / "auth.py").read_text()
+    assert smoke.CLERK_BOOTSTRAP_MARKER in emitted, (
+        f"smoke_live.py gates its auth probe on {smoke.CLERK_BOOTSTRAP_MARKER!r}, "
+        "which lib/auth.py no longer emits — on a Clerk-configured host the "
+        "probe now skips silently and CD reports green on unproven auth"
+    )

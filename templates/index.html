@@ -68,9 +68,21 @@
     <link rel="canonical" href="__PAGE_URL__">
 
     <!-- Favicons (assets/favicon/). The .ico is NOT listed here — Dash's
-         favicon placeholder already emits it, cache-busted. -->
+         favicon placeholder already emits it, cache-busted.
+
+         This set must MATCH run.py's configure_seo(icons=) size for size:
+         that call writes the crawler document's head, this block writes the
+         browser's, and identity may not differ between the two documents.
+         It did until 2026-08-26 — the crawler was offered 96/192/512 and the
+         browser three sizes topping out at 180, so the head Google indexed
+         and the head a user's browser picked from were different documents'
+         answers to the same question. smoke_live.py's parity block is what
+         found it and is what keeps it found. -->
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="/assets/favicon/favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon/android-chrome-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon/android-chrome-512x512.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon/apple-touch-icon.png">
     <link rel="manifest" href="/assets/favicon/site.webmanifest">
     <meta name="theme-color" content="#3399ff">

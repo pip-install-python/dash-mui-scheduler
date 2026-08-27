@@ -198,3 +198,26 @@ def test_the_default_base_url_matches_the_container_port(battery):
         f"the battery defaults to port {port}; the image exposes something else"
     )
     assert f"${{PORT:-{port}}}" in dockerfile, "the CMD binds a different port"
+
+
+def test_the_batterys_urlopen_carries_the_ssl_context():
+    """Source pin, the twin of tests/test_auth_wiring.py's for smoke_live.
+
+    Bare urllib on a Python without OS trust-store integration (macOS — the
+    fleet's whole local-dev half) fails every https handshake, and this
+    battery reports that as the HOST being down: forty checks at 0 against a
+    site that is perfectly up. Linux CI verifies fine and every wired test
+    patches the transport, so nothing but the source can hold this line.
+    Directed fleet-wide by the ops seat, 2026-08-26; ahead of the template,
+    which still calls urlopen bare (recorded in DIVERGENCES.md).
+    """
+    import re
+
+    source = (REPO_ROOT / "scripts" / "network_smoke.py").read_text()
+    calls = re.findall(r"urlopen\((?:[^)]|\n)*?\)", source)
+    assert calls, "no urlopen calls found in network_smoke.py — rewritten?"
+    naked = [c for c in calls if "context=SSL_CONTEXT" not in c]
+    assert not naked, (
+        f"urlopen without context=SSL_CONTEXT in network_smoke.py: {naked} — "
+        "on macOS this reads a healthy host as down"
+    )

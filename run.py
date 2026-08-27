@@ -436,11 +436,14 @@ register_page_metadata(
 # ============================================================================
 configure_seo(
     icons=[
-        # Same pixels templates/index.html links, so the two heads agree.
+        # Every size templates/index.html links, and nothing it does not:
+        # the crawler head and the browser head must declare the SAME set
+        # (they did not until 2026-08-26 — 96/192/512 reached crawlers only).
         # The .ico href is the assets/favicon/ copy (byte-identical to the
         # root one Dash's {%favicon%} placeholder emits) so this list is
         # SET-equal to what 2.6.0's autodiscovery finds —
-        # tests/test_seo_icons.py pins that agreement.
+        # tests/test_seo_icons.py pins that agreement, and smoke_live.py's
+        # parity block pins the agreement with the browser head.
         "/assets/favicon/favicon.ico",
         {"href": "/assets/favicon/favicon-32x32.png", "sizes": "32x32"},
         {"href": "/assets/favicon/favicon-16x16.png", "sizes": "16x16"},
