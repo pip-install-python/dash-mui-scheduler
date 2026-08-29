@@ -34,11 +34,24 @@ from dash_improve_my_llms import (
     LLMSConfig,
     RobotsConfig,
     mark_hidden,
+    on_document_read,
     register_page_metadata,
 )
 
 # The version requirements.txt pins. Asserted at boot — see the floors block.
 #
+# 2.8.0 is the ledger floor (2026-08-29): ONE classifier — `classify()` is the
+# registry robots.txt is rendered from, and lib/analytics_tracker delegates to
+# it instead of carrying a UA list of its own that filed ClaudeBot (Anthropic's
+# TRAINING crawler) under "search"; the READ EVENT — `on_document_read` hands
+# this app one row per corpus document served (tier, verdict, bytes, verified
+# vendor), which the tracker keeps as the ledger's `reads` table and
+# lib/traffic_rollup folds into rollup v4's `vendors[]`; `Vary: User-Agent` on
+# the lane-split responses; and verified vendor identity (`verified` is `n/a`
+# where the operator publishes no ranges — Anthropic does not, so ClaudeBot is
+# always n/a). 2.8.1 will write the resolved `policy` on every event; until
+# then it is None and the rollup groups it as "default" — nothing here waits
+# on it.
 # 2.7.1 is the network floor (round-3). Below 2.7.1 the llms.txt v2
 # discovery relations are missing on both lanes — rel=alternate /
 # rel=describedby plus the matching Link headers — along with the
@@ -59,7 +72,7 @@ from dash_improve_my_llms import (
 # document, /favicon.ico serves the app shell.
 # `configure_seo` is imported AFTER this floor fires so a stale environment
 # gets the floor's diagnosis instead of a bare ImportError.
-LLMS_PKG_FLOOR = (2, 7, 1)
+LLMS_PKG_FLOOR = (2, 8, 0)
 
 # THE FORK POINT — claim this app's network identity before any hub-facing
 # module imports. Every module that names this app (satellite_reporter,
@@ -135,6 +148,10 @@ if LLMS_PKG_FLOOR > _version(LLMS_PKG_VERSION):
     _dependency_floor(
         f"dash-improve-my-llms {LLMS_PKG_VERSION} is below the "
         f"{'.'.join(str(n) for n in LLMS_PKG_FLOOR)} floor in requirements.txt. "
+        "Below 2.8.0 there is no `classify()` and no `on_document_read`: the "
+        "tracker cannot delegate bot classification and no read row is ever "
+        "kept, so the ledger's `reads` table and rollup v4's vendors[] stay "
+        "empty (ImportError at boot, not a silent degrade). "
         "Below 2.7.1 the llms.txt v2 discovery relations (rel=alternate/"
         "describedby + Link headers), the text/plain Accept ramp and the "
         "representation digest are missing — the machine lane loses its "
@@ -518,18 +535,29 @@ def _augment_crawler_html() -> None:
         try:
             path = kwargs.get("page_path") or "/"
             url = BASE_URL + (path if path != "/" else "/")
-            extra = (
-                f'    <meta property="og:site_name" content="{SITE_BRAND}">\n'
-                f'    <meta property="og:image" content="{OG_IMAGE_URL}">\n'
-                f'    <meta property="twitter:card" content="summary_large_image">\n'
-                f'    <meta property="twitter:image" content="{OG_IMAGE_URL}">\n'
+            # EVERY tag here is injected only if the artifact does not already
+            # emit it. dimll ≥2.3.4 emits its own canonical, and by 2.8.0 it
+            # also emits og:image and the twitter card (as `name=`, where this
+            # block writes `property=`) — so an unconditional add shipped the
+            # crawler document TWO og:image tags and scrapers pick one. It went
+            # unseen because the battery's own UA was on the browser lane until
+            # dimll 2.8.0 reclassified it; the same double-canonical dash-email
+            # shipped and removed. Measured on the 2.8.0 wheel, 2026-08-29.
+            candidates = (
+                ('property="og:site_name"',
+                 f'    <meta property="og:site_name" content="{SITE_BRAND}">\n'),
+                ('"og:image"',
+                 f'    <meta property="og:image" content="{OG_IMAGE_URL}">\n'),
+                ('"twitter:card"',
+                 '    <meta property="twitter:card" content="summary_large_image">\n'),
+                ('"twitter:image"',
+                 f'    <meta property="twitter:image" content="{OG_IMAGE_URL}">\n'),
+                ('rel="canonical"',
+                 f'    <link rel="canonical" href="{url}">\n'),
             )
-            # dimll ≥2.3.4 emits its own canonical in the prerender; adding a
-            # second identical tag fails the battery's exactly-one check (the
-            # same double-canonical dash-email shipped and then removed). Only
-            # inject ours if the artifact ever stops emitting it.
-            if 'rel="canonical"' not in html:
-                extra = f'    <link rel="canonical" href="{url}">\n' + extra
+            extra = "".join(tag for marker, tag in candidates if marker not in html)
+            if not extra:
+                return html
             return html.replace("</head>", extra + "</head>", 1)
         except Exception:
             return html
@@ -611,6 +639,16 @@ ACCESS_ENABLED = _access.configure(
 # bot-detection middleware, and (on Dash 4.3+) MCP resource registration.
 # Works under Flask, FastAPI, and Quart — no gating needed.
 add_llms_routes(app, LLMSConfig(warn_missing_llms_doc=True))
+
+# The ledger row (dimll 2.8.0): the package emits one event per corpus
+# document it serves and does no I/O with it; the tracker keeps it as the
+# `reads` table next to `visits`. Registered ONCE — the test suite imports
+# run.py more than once per process and `on_document_read` appends, so a
+# marker on the callback's owner guards the second import (the package also
+# dedups an identical callable; belt and braces).
+if not getattr(tracker, "_read_hook_registered", False):
+    on_document_read(tracker.record_read)
+    tracker._read_hook_registered = True
 
 # ============================================================================
 

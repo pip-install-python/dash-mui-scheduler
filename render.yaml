@@ -1,5 +1,5 @@
 # Render blueprint — dash-mui-scheduler docs (single web service, docker runtime).
-# Auto-deploys on push to main. Serves the component documentation at
+# Auto-deploys the `release` branch, which only CD writes (see `branch:` below). Serves the component documentation at
 # https://muischeduler.2plot.dev (custom domain attached in the Render
 # dashboard; the service's own *.onrender.com URL 301s there — see
 # CANONICAL_HOST_REDIRECT).
@@ -40,6 +40,13 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
+    # `release` is written ONLY by CD (.github/workflows/cd.yml, job `deploy`:
+    # a fast-forward push of the run's sha after the matrix is green). A push
+    # to main is not a deploy. autoDeploy stays on: Render reacting to this
+    # branch IS the mechanism (1.6.35). NOTE this field binds only a
+    # Blueprint-managed service — on a dashboard-managed one the Branch field
+    # in Render is the switch, and it is the owner's to flip.
+    branch: release
     autoDeploy: true
     envVars:
       # --- Backend selection (REQUIRED — see checklist #2) ---

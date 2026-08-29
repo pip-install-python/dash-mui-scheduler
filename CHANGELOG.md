@@ -10,6 +10,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+*Documentation site and repository plumbing only; the `dash_mui_scheduler`
+package is unchanged — PyPI still carries 1.0.0.*
+
+### Added
+- **This site now keeps a record of which AI crawler read which document.**
+  Every time the machine-readable corpus is served — `/llms.txt`, a page's
+  own `llms.txt`, the sitemap — the site keeps a row saying who asked, what
+  they got, how big it was, and whether the request came from an address the
+  vendor publishes. A new operator page at `/admin/traffic` shows it back:
+  vendor by day, vendor by document type, and the paths each one pulled, next
+  to the visitor numbers for the same day.
+- **The daily traffic summary this site reports to 2plot.ai gained a vendor
+  breakdown**, sent only on days that actually had machine reads. Nothing
+  that was already reported changed shape.
+
+### Changed
+- **One answer to "who is this?"** Bot identification now comes entirely from
+  the `dash-improve-my-llms` vendor registry — the same registry that decides
+  what `robots.txt` says — instead of a hand-kept list of user-agent strings.
+  What the site SAYS about a crawler and what it COUNTS can no longer
+  disagree.
+- **The visitor numbers move on the day this ships, and the new ones are the
+  true ones.** Human visits DROP and bot visits RISE, because clients that
+  send no user agent at all, and library clients like `httpx` or
+  `Go-http-client`, were being counted as people. Anthropic's ClaudeBot was
+  also filed as a search crawler when it is a training crawler. Expect a
+  visible step in the day-over-day chart; it is the number becoming correct.
+- **Deployments now ship only what the test matrix has already passed.**
+  Render builds a `release` branch that continuous integration writes after
+  it goes green, so pushing to `main` proposes a deploy rather than
+  performing one. A red build can no longer reach the live site while its own
+  checks are still running.
+
+### Fixed
+- **Link previews of this site no longer carry two conflicting image tags.**
+  The page served to crawlers and social-media scrapers was given a preview
+  image by the site on top of the one the documentation engine already
+  emitted, leaving the scraper to pick one. Each tag is now added only if it
+  is missing.
+- **The pre-deploy check battery identifies itself as a browser when it is
+  checking the browser's page.** It was being classified as a crawler and
+  therefore inspecting the wrong document — reporting a missing app manifest
+  on a site that has one.
+
 ## [2026-08-27] — the same icons for everyone, and a battery that waits
 
 *Documentation site and repository plumbing only; the `dash_mui_scheduler`

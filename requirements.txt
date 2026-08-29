@@ -131,7 +131,7 @@ python-dotenv>=1.0.0
 # with. Grep the NUMBER, not the file: it also lives in run.py's boot floor
 # and in both ci.yml gates.
 # ---------------------------------------------------------------------------
-dash-improve-my-llms[flask,fastapi]>=2.7.1
+dash-improve-my-llms[flask,fastapi]>=2.8.0
 # Both real backends ship above, because both are exercised: prod runs
 # fastapi (render.yaml) and CI + local dev also run flask. The third one is
 # a commented extras line rather than an install, because
@@ -139,7 +139,7 @@ dash-improve-my-llms[flask,fastapi]>=2.7.1
 # DASH_BACKEND to it, and tests/test_runtime_imports.py exempts run.py's
 # optional backend imports only while the install step is written down here,
 # next to every other dependency, instead of being discovered in a traceback.
-# dash-improve-my-llms[quart]>=2.7.1    # + `pip install dash[quart]`
+# dash-improve-my-llms[quart]>=2.8.0    # + `pip install dash[quart]`
 
 # Production servers. gunicorn>=23: 21.x carried two request-smuggling CVEs
 # (CVE-2024-6827, CVE-2024-1135) — that floor is why markdown2dash installs

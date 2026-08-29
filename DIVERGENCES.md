@@ -65,6 +65,15 @@ boundary between design and drift:
    (`scripts/network_smoke.py` and `scripts/smoke_live.py` fail if a
    `ClaudeBot` stanza ever appears). See `run.py`'s `configure_seo`
    call for the reasoning in full.
+   RE-MEASURED 2026-08-29 at the dash-improve-my-llms 2.8.0 floor: the
+   STATUSES are unchanged (200 on `/`, `/llms.txt` and `/healthz` for
+   ClaudeBot and GPTBot alike — see the Posture block below), but the
+   DOCUMENT on `/` moved. 2.8's lane assignment follows the package's
+   vendor registry, so both vendors now receive the prerendered crawler
+   document where they previously got the app shell. That is the allow
+   posture working, not a regression: the training crawlers are not
+   refused here, and what they now read is this site's prose rather
+   than a JavaScript stub.
 
 6. **`scripts/smoke_live.py` is a PORT of the template's, never a
    byte-copy.** Spec 1.6.22-1.6.29 item 6 reclassed the file
@@ -97,6 +106,25 @@ boundary between design and drift:
    `tests/test_network_smoke.py::test_the_batterys_urlopen_carries_the_ssl_context`
    holds the line from the source. Retire this entry when the template
    adopts the same context.
+
+8. **`scripts/network_smoke.py`'s default UA names the BROWSER lane;
+   the template's is a bare `2plot-internal/1.0 (...) network-smoke`.**
+   Ahead of the template, not behind it, and measured here first:
+   dash-improve-my-llms 2.8.0 classifies by its vendor registry, and a
+   UA carrying no browser identity is the CRAWLER lane. Every
+   default-UA check in the battery then measured the prerendered
+   crawler document instead of the app shell — `installable_as_an_app`
+   reported "no manifest link" against a host that serves one, and
+   `social_card_real_pixels` reported two `og:image` tags. Both went
+   red on this repo's own suite the moment the floor moved. The fix
+   prefixes a real Chrome token and keeps the internal-traffic token
+   after it, so the analytics contract is untouched; `CRAWLER_UA` is
+   unchanged and still names Googlebot. Same class as the template's
+   own 1.6.34 fix to `tests/test_proxy_scheme.py` (a UA-less request
+   receiving the crawler document), applied one file further out.
+   Reported to the ops seat as a fleet pushback — every fork's battery
+   ships this UA. Retire this entry when the template adopts the same
+   default.
 
 ## Retired
 
@@ -151,4 +179,49 @@ template's to update mechanically.
 # divergence 5's robots posture — a byte-copy asserts a ClaudeBot
 # stanza this host deliberately does not emit and fails a healthy site.
 - scripts/smoke_live.py
+```
+
+## Posture
+
+What this host ANSWERS, as measured — never as intended. The hub's F4
+battery seeded these per-host postures from its own table, which is a
+copy of a measurement somebody took once; this block homes them in the
+repo that can keep them true, and the hub reads it instead.
+
+Four keys, all optional. An EMPTY block means "the template defaults" —
+present, so the absence is a statement. `tests/test_claude_kit.py`
+validates the shape (and holds `runtime:` against render.yaml, where the
+repo declares one); nothing validates the numbers but a probe, so
+re-measure when you change what this host serves:
+
+    ai_bots   the status an AI-crawler UA receives per path, measured
+              with a real vendor UA (ClaudeBot, GPTBot — NOT a UA-less
+              curl, which is classified separately). ALL 200 here, and
+              that is divergence 5, not an oversight: these are
+              MIT-licensed component docs and this host does not refuse
+              the training crawlers. The template answers 403 on `/`.
+    healthz   `full` — the fleet payload (ok, app, backend, build,
+              python, dash_version, geo).
+    runtime   `docker` — divergence 2. Render ignores PYTHON_VERSION on
+              this service; the image is the interpreter declaration.
+    deploy    `release-branch` — Render deploys `release`, which only CD
+              writes after a green matrix (1.6.35, sync item 13);
+              `build` on /healthz is HEAD of `release`, and `main` ahead
+              of it is an uncertified push pending. ABSENT reads as
+              `main`.
+
+Measured on muischeduler.2plot.dev, 2026-08-29, build 4a4ef49 (the live
+host, still on dash-improve-my-llms 2.7.1) with ClaudeBot and GPTBot
+alike, and reproduced in-process on the 2.8.0 wheel this change ships.
+The STATUSES do not move at 2.8.0; the DOCUMENT on `/` does — under 2.8
+the lane follows the package's vendor registry, so both vendors now get
+the prerendered crawler document where they used to get the app shell.
+A browser gets 200 on all three paths too, so on this host the fence has
+no asymmetry to record — which is itself the posture.
+
+```yaml posture
+ai_bots: {"/": 200, "/llms.txt": 200, "/healthz": 200}
+healthz: full
+runtime: docker
+deploy: release-branch
 ```

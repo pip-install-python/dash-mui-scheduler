@@ -200,6 +200,28 @@ they win.
   the same sha — key on the workflow path (cd.yml) instead.
 - The browser lane and the machine lane are different documents;
   a fix proven on one is unproven on the other.
+- There is ONE classifier: `dash_improve_my_llms.classify()`. Never
+  add a User-Agent list to this app — the tracker had one for a year
+  (`lib/analytics_tracker.py`, until the 2.8.0 floor), it filed
+  ClaudeBot as *search* (it is Anthropic's training crawler; the
+  package's registry and this repo's own `run.py` comment both said so
+  six lines from where the list ignored them), it still named the
+  retired `anthropic-ai` / `claude-web` tokens, and it counted every
+  UA-less or library client as a human. Every host in the fleet
+  reported those numbers. A token the registry lacks is a pushback to
+  the package seat, not a list here; `tests/test_analytics_classifier.py`
+  greps the module for the old tokens and goes red if one comes back.
+- `build == HEAD` on `/healthz` means HEAD of **`release`**, not main
+  (1.6.35). Render deploys `release`; only cd.yml's `deploy` job writes
+  it, fast-forward, after the CI matrix is green. `main` ahead of
+  `release` is an uncertified push pending — its CD run is red or still
+  running — never "drift" and never a reason to deploy by hand or to
+  write `release` yourself (a non-fast-forward push fails the next run
+  on purpose). Compare the wire against `git rev-parse origin/release`.
+  On a service Render manages from its DASHBOARD rather than the
+  Blueprint, `render.yaml`'s `branch:` is documentation and the Branch
+  field is the switch — the first promoted run cannot tell the two
+  apart, because main and release then hold the same sha.
 - A bot-merged PR — any GITHUB_TOKEN merge — lands with ZERO
   workflow runs on the merge sha (anti-recursion) yet still reaches
   production: the deploy hook builds branch HEAD, so an in-flight
