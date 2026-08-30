@@ -129,6 +129,33 @@ boundary between design and drift:
    `lib/constants.py` — reported to the ops seat as the evidence item
    16's reclass asked for.
 
+9. **`templates/index.html` declares ONE canonical, as the literal token
+   `__PAGE_URL__`; the template declares none.** Recorded 2026-08-30 after
+   the ops seat read it as drift — it has been pinned by
+   `tests/test_config.py::test_the_only_canonical_is_the_per_request_token`
+   and explained in that pin's docstring since before this repo carried a
+   DIVERGENCES.md, and never written down here. That omission is the whole
+   reason it looked like drift, which is this file's rule proving itself.
+   The reason it exists: the template lets the package inject a canonical,
+   which reaches the CRAWLER document only. This app instead ships the token
+   in the shell and `run.py`'s `@dash.hooks.index()` hook (`run.py:357`)
+   replaces it with the REQUESTED page's URL on every response, so a client
+   that reads HTML without running JavaScript already has the right
+   canonical rather than the home page's. Deleting the line would leave the
+   browser lane with NO canonical in the server response: `grep -rn
+   'rel="canonical"'` over the tree finds exactly two emitters — this one,
+   and `run.py:555`, which is inside `_augment_crawler_html` and guarded, so
+   it fires on the crawler lane only. The URL-sync script at
+   `templates/index.html:167` is not a third: its `head()` helper is
+   find-or-create and runs on client-side navigation, so it cannot help a
+   JS-less reader of the first response. MEASURED 2026-08-30 by parsing
+   ELEMENTS rather than counting substrings — `/`, `/quickstart` and
+   `/changelog`, both lanes: exactly ONE `<link rel="canonical">` each,
+   carrying that page's own URL. A substring grep reads 2 on the browser
+   lane because the sync script's selector mentions the tag; that artifact
+   is what produced this repo's own false report of a duplicate, and it is
+   the same trap the template hit on its note-63 probe. Count elements.
+
 ## Retired
 
 - ~~**`scripts/network_smoke.py`'s default UA names the BROWSER lane.**~~
