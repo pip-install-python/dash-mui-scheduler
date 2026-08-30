@@ -49,19 +49,22 @@ try:
     from lib.constants import INTERNAL_UA as _INTERNAL_UA
 except Exception:  # running outside a repo checkout — keep the token intact
     _INTERNAL_UA = "2plot-internal/1.0 (+https://2plot.ai/docs/satellite-analytics)"
-# The DEFAULT identity is a BROWSER, and it has to say so in browser tokens.
-# dash-improve-my-llms 2.8.0 classifies by its vendor registry, and a UA with
-# no browser identity — the bare `2plot-internal/1.0 (...) network-smoke` this
-# used to send — is the CRAWLER lane. Every default-UA check then measured the
-# prerendered crawler document instead of the app shell: no manifest link at
-# all (installable_as_an_app), and the crawler document's own og:image next to
-# this app's injected one (social_card_real_pixels). Measured 2026-08-29 on
-# the 2.8.0 wheel. Same class as the template's proxy-scheme fix (sync spec
-# 1.6.34, "either lane can be the one you did not mean to test"); the internal
-# token stays, because the analytics contract is what it is for.
-_BROWSER = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-UA = _BROWSER + " " + _INTERNAL_UA + " network-smoke"
+# The default UA names the BROWSER lane first (1.6.40; this repo's finding on
+# its item-12 port, upstreamed): at dash-improve-my-llms >= 2.8 a UA with no
+# browser engine token is classified crawler-lane, so a bare internal token
+# made every default-UA check read the prerendered crawler document — here
+# `installable_as_an_app` ("no manifest link") and `social_card_real_pixels`
+# ("2 og:image tags") went red the moment the floor moved, and would have gone
+# red in CD's verify job. The internal token stays IN the string, after the
+# engine token: INTERNAL_UA_TOKEN is a substring match, so the far side's
+# internal-traffic exclusion still holds. CRAWLER_UA is the other lane and is
+# deliberately untouched.
+BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 "
+    + _INTERNAL_UA + " network-smoke"
+)
+UA = BROWSER_UA
 CRAWLER_UA = "Mozilla/5.0 (compatible; Googlebot/2.1) " + _INTERNAL_UA
 
 # The body dash-improve-my-llms serves when a page has no prose registered.

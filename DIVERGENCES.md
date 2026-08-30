@@ -107,26 +107,7 @@ boundary between design and drift:
    holds the line from the source. Retire this entry when the template
    adopts the same context.
 
-8. **`scripts/network_smoke.py`'s default UA names the BROWSER lane;
-   the template's is a bare `2plot-internal/1.0 (...) network-smoke`.**
-   Ahead of the template, not behind it, and measured here first:
-   dash-improve-my-llms 2.8.0 classifies by its vendor registry, and a
-   UA carrying no browser identity is the CRAWLER lane. Every
-   default-UA check in the battery then measured the prerendered
-   crawler document instead of the app shell — `installable_as_an_app`
-   reported "no manifest link" against a host that serves one, and
-   `social_card_real_pixels` reported two `og:image` tags. Both went
-   red on this repo's own suite the moment the floor moved. The fix
-   prefixes a real Chrome token and keeps the internal-traffic token
-   after it, so the analytics contract is untouched; `CRAWLER_UA` is
-   unchanged and still names Googlebot. Same class as the template's
-   own 1.6.34 fix to `tests/test_proxy_scheme.py` (a UA-less request
-   receiving the crawler document), applied one file further out.
-   Reported to the ops seat as a fleet pushback — every fork's battery
-   ships this UA. Retire this entry when the template adopts the same
-   default.
-
-9. **`components/header.py` keeps three pieces of this fork's identity
+8. **`components/header.py` keeps three pieces of this fork's identity
    that the template hardcodes in the same file.** Sync item 16 (1.6.38)
    makes navbar/header/footer cargo-eligible "once a fork carries the
    constants block" — and this fork does: `WORDMARK`, `GITHUB_URL`,
@@ -149,6 +130,23 @@ boundary between design and drift:
    16's reclass asked for.
 
 ## Retired
+
+- ~~**`scripts/network_smoke.py`'s default UA names the BROWSER lane.**~~
+  RETIRED 2026-08-30, by adoption. Recorded here on 2026-08-29 as ahead of
+  the template and measured here first: at dash-improve-my-llms 2.8.0 a UA
+  with no browser engine token is crawler-lane, so the battery's bare
+  `2plot-internal/1.0 (...) network-smoke` made every default-UA check read
+  the prerendered crawler document — `installable_as_an_app` reported "no
+  manifest link" against a host that serves one, and
+  `social_card_real_pixels` reported two `og:image` tags. Both would have
+  gone red in CD's verify job. Template 1.6.40 (8ceca5c) adopts the fix in
+  the shape shipped here — a Chrome/AppleWebKit token first, the internal
+  token after it, `CRAWLER_UA` untouched — as sync item 17, so this repo now
+  carries the template's `BROWSER_UA` constant verbatim and there is no
+  difference left to record. `tests/test_network_smoke.py::
+  test_the_batterys_default_ua_is_browser_lane_and_still_internal` holds it
+  from both ends: the default is browser-lane AND still carries the internal
+  token, which is the pair that makes the fix safe.
 
 - ~~**`dependabot.yml` runs no `npm` ecosystem.**~~ RETIRED
   2026-08-26. The reason was real and still holds — this repo has a

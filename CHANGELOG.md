@@ -86,7 +86,8 @@ package is unchanged — PyPI still carries 1.0.0.*
 - **The pre-deploy check battery identifies itself as a browser when it is
   checking the browser's page.** It was being classified as a crawler and
   therefore inspecting the wrong document — reporting a missing app manifest
-  on a site that has one.
+  on a site that has one. The fix was adopted across the other 2plot sites,
+  which all had it.
 
 ## [2026-08-27] — the same icons for everyone, and a battery that waits
 
