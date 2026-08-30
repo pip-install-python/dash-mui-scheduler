@@ -2,6 +2,8 @@
 name: Views
 description: Switch, restrict, and control the day, week, month, and agenda views of the dash-mui-scheduler EventCalendar.
 endpoint: /views
+category: Scheduler
+order: 6
 lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:calendar-multiselect

@@ -126,6 +126,28 @@ boundary between design and drift:
    ships this UA. Retire this entry when the template adopts the same
    default.
 
+9. **`components/header.py` keeps three pieces of this fork's identity
+   that the template hardcodes in the same file.** Sync item 16 (1.6.38)
+   makes navbar/header/footer cargo-eligible "once a fork carries the
+   constants block" — and this fork does: `WORDMARK`, `GITHUB_URL`,
+   `CATEGORY_ORDER`, `UPSTREAM`, `API_PACKAGES` and `resources()` are all
+   in `lib/constants.py` now, and `components/navbar.py` and
+   `components/footer.py` came across byte-identical. `header.py` did not,
+   and the reason is in the TEMPLATE's copy, not this one: it still names
+   `get_asset_url('ddb.png')`, `c="#03c7e5"` and `visibleFrom="xs"` on the
+   wordmark inline. This host's logo is `assets/dms_logo.svg` (an SVG —
+   the template's fixed `width: 36px` is wrong for it), its accent is
+   `#3399ff` (the `brand` ramp in components/appshell.py), and its
+   wordmark is `visibleFrom="md"` because "dash-mui-scheduler" is
+   seventeen characters and crowds the burger and search at xs. One more
+   difference is this fork's own: `create_link()` takes a `visible_from`
+   breakpoint so the GitHub icon drops on phone widths. A byte-copy of
+   the template's header would therefore ship this site the template's
+   logo and colour. Retire this entry when the template lifts the logo
+   asset, the wordmark colour and the wordmark breakpoint into
+   `lib/constants.py` — reported to the ops seat as the evidence item
+   16's reclass asked for.
+
 ## Retired
 
 - ~~**`dependabot.yml` runs no `npm` ecosystem.**~~ RETIRED
@@ -210,14 +232,27 @@ re-measure when you change what this host serves:
               of it is an uncertified push pending. ABSENT reads as
               `main`.
 
-Measured on muischeduler.2plot.dev, 2026-08-29, build 4a4ef49 (the live
-host, still on dash-improve-my-llms 2.7.1) with ClaudeBot and GPTBot
-alike, and reproduced in-process on the 2.8.0 wheel this change ships.
-The STATUSES do not move at 2.8.0; the DOCUMENT on `/` does — under 2.8
-the lane follows the package's vendor registry, so both vendors now get
-the prerendered crawler document where they used to get the app shell.
-A browser gets 200 on all three paths too, so on this host the fence has
-no asymmetry to record — which is itself the posture.
+RE-MEASURED on the wire 2026-08-30 (sync item 15's acceptance), build
+4a4ef49, with the real vendor UAs — ClaudeBot/1.0 and GPTBot/1.2, not a
+UA-less curl, which the package classifies separately:
+
+    /          ClaudeBot 200   GPTBot 200
+    /llms.txt  ClaudeBot 200   GPTBot 200
+    /healthz   ClaudeBot 200   GPTBot 200
+
+and `robots.txt` carries no `Disallow` for either — no training stanza
+at all, which is the shape `block_ai_training=False` produces (they fall
+under `User-agent: *`). Item 15's flip is therefore `already-present`
+here: this host has allowed since it was built, and the numbers below
+are its measurement, not the hub's seeded table. The same six were read
+on 2026-08-29 and reproduced in-process on the 2.8.0 wheel this round
+ships — the STATUSES do not move at 2.8.0; the DOCUMENT on `/` does,
+because the lane now follows the package's vendor registry, so both
+vendors get the prerendered crawler prose where they used to get the app
+shell. A browser gets 200 on all three paths too, so on this host the
+fence has no asymmetry to record — which is itself the posture. Wire
+minus in-process is zero here: no edge wall, consistent with the owner's
+2026-08-30 finding that no Cloudflare AI-bot rule exists on this plan.
 
 ```yaml posture
 ai_bots: {"/": 200, "/llms.txt": 200, "/healthz": 200}

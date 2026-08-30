@@ -637,6 +637,60 @@ img[alt=logo] { width: 100%; }
     -webkit-overflow-scrolling: touch;
 }
 
+/* A code block inside a List item, a Blockquote or a Timeline row widens
+   the WHOLE document at phone width (1.6.39): the wrapper is inline-flex and
+   the label a block child, so without min-width:0 the label grows to the
+   code's intrinsic width and takes the page with it. The rule belongs here,
+   in the stylesheet, for every container a code block can sit in — never as
+   a per-page fix, because the next page to embed one would need it again. */
+.mantine-List-itemWrapper,
+.mantine-List-itemLabel,
+.mantine-List-item,
+.mantine-Blockquote-root,
+.mantine-Timeline-itemBody,
+.mantine-CodeHighlight-root,
+.mantine-CodeHighlightTabs-root {
+    min-width: 0;
+    max-width: 100%;
+}
+.mantine-List-itemWrapper {
+    width: 100%;
+}
+.mantine-List-itemLabel {
+    flex: 1 1 auto;
+}
+/* Timeline bullets (/changelog): a Text inside a no-wrap Group grows to its
+   longest unbreakable token — a 60-character identifier in a code span — and
+   leaves its card. pages/changelog.py sets the same pair inline; this keeps
+   the stylesheet holding the line on its own. */
+.mantine-Timeline-root .mantine-Text-root,
+.mantine-Timeline-root .mantine-Code-root {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* Inline code in prose: a long unbreakable token (a dotted module path, an
+   `app.server.before_request` chain) is the last thing that can push a page
+   past the viewport once blocks and tables scroll in their own boxes. Block
+   code keeps its pre formatting; this is inline only. */
+code.m2d-codespan,
+.mantine-Code-root:not(.mantine-CodeHighlight-code) {
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+/* Every block a code sample can land in scrolls itself rather than the page:
+   the generated prop tables (`.. kwargs::`) included. */
+table.m2d-block-kwargs {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+}
+.mantine-CodeHighlight-root pre,
+.mantine-CodeHighlightTabs-root pre,
+.mantine-AppShell-main pre {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
 /* Mobile: never let the page itself scroll horizontally. Wide content (props
    tables, code blocks) scrolls inside its own container instead. */
 @media (max-width: 768px) {

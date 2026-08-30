@@ -3,7 +3,9 @@ from dash import Output, Input, State, clientside_callback, html, get_asset_url
 from dash_iconify import DashIconify
 
 from components.backend_badge import create_backend_badge
+from components.navbar import search_data
 from lib.backend import get_backend_info
+from lib.constants import API_PACKAGES, BASE_URL, GITHUB_URL, WORDMARK
 
 
 def create_link(icon, href, label, visible_from=None):
@@ -55,8 +57,93 @@ def create_clerk_avatar():
     return create_clerk_menu(show_dropdown=True, dropdown_align="right")
 
 
+def create_other_apps_menu():
+    """*Other Apps* — the network, from ONE registry (1.6.38).
+
+    A hover menu in the top bar (the 2plot.dev shape the owner named as the
+    reference), populated from lib.network_directory's PRIMARY set: the
+    primary applications only, this app omitted, labelled by domain. The
+    sidebar's "2plot network" section is gone — this is the only place the
+    network is listed, so it cannot be listed twice, and the long
+    "name — role" titles that did not fit a sidebar go with it.
+    """
+    from lib.network_directory import other_apps_for
+
+    return dmc.Menu(
+        [
+            dmc.MenuTarget(
+                dmc.Button(
+                    "Other Apps",
+                    variant="subtle",
+                    color="gray",
+                    size="sm",
+                    leftSection=DashIconify(icon="svg-spinners:blocks-scale", width=18),
+                    visibleFrom="md",
+                    id="other-apps-menu-target",
+                )
+            ),
+            dmc.MenuDropdown(
+                [
+                    dmc.MenuItem(
+                        entry["label"],
+                        leftSection=DashIconify(icon=entry["icon"], width=16),
+                        href=entry["url"],
+                        target="_blank",
+                    )
+                    for entry in other_apps_for(BASE_URL)
+                ],
+                id="other-apps-menu",
+                # Solid, themed panel (1.6.39): the seat found the dropdown
+                # near-transparent with washed-out items in dark mode.
+                styles={"dropdown": {
+                    "backgroundColor": "var(--mantine-color-body)",
+                    "border": "1px solid var(--mantine-color-default-border)",
+                    "boxShadow": "var(--mantine-shadow-md)",
+                }},
+            ),
+        ],
+        trigger="hover",
+        openDelay=100,
+        closeDelay=200,
+    )
+
+
+def _package_version():
+    """The documented component package's version, or None."""
+    if not API_PACKAGES:
+        return None
+    try:
+        from importlib.metadata import version
+
+        return version(API_PACKAGES[0].replace("_", "-"))
+    except Exception:
+        try:
+            import importlib
+
+            return getattr(importlib.import_module(API_PACKAGES[0]), "__version__", None)
+        except Exception:
+            return None
+
+
+def create_version_badge():
+    """`v<version>` of the documented package, when the fork declares one."""
+    v = _package_version()
+    if not v:
+        return None
+    return dmc.Badge(
+        f"v{v}",
+        variant="light",
+        color="gray",
+        radius="sm",
+        styles={"root": {"textTransform": "none", "fontWeight": 600}},
+        **{"aria-label": f"{API_PACKAGES[0]} version {v}"},
+    )
+
+
 def create_search(data):
-    """Create searchable dropdown for component navigation"""
+    """Searchable dropdown for page navigation — the sidebar's pages and
+    nothing else (never /admin/*, never a hidden-tier page; components/navbar
+    decides, so the two lists cannot disagree)."""
     return dmc.Select(
         id="select-component",
         placeholder="Search pages...",
@@ -67,11 +154,7 @@ def create_search(data):
         size="sm",
         nothingFoundMessage="No pages found",
         leftSection=DashIconify(icon="mingcute:search-3-line", width=18),
-        data=[
-            {"label": component["name"], "value": component["path"]}
-            for component in data
-            if component["name"] not in ["Home", "Not found 404"]
-        ],
+        data=search_data(data),
         visibleFrom="sm",
         comboboxProps={"zIndex": 2000},
         styles={
@@ -143,7 +226,7 @@ def create_header(data):
                                         style={'height': '36px'}
                                     ),
                                     dmc.Text(
-                                        "dash-mui-scheduler",
+                                        WORDMARK,
                                         size="lg",
                                         fw=700,
                                         c="#3399ff",
@@ -164,7 +247,7 @@ def create_header(data):
                             # logo img is decorative (alt=""). Without the
                             # label the home link has no name at all on
                             # phones. Two forks hit this independently.
-                            **{"aria-label": "dash-mui-scheduler — home"},
+                            **{"aria-label": f"{WORDMARK} — home"},
                         ),
                     ],
                     gap="md",
@@ -175,11 +258,17 @@ def create_header(data):
                     [
                         dmc.Box(create_backend_badge(), visibleFrom="sm"),
                         dmc.Box(_create_openapi_link(), visibleFrom="md"),
+                        dmc.Box(create_version_badge(), visibleFrom="sm"),
                         create_search(data),
+                        create_other_apps_menu(),
+                        # The REPOSITORY, from the one constant JSON-LD's
+                        # sameAs also reads (1.6.38). This icon pointed at
+                        # the profile — the owner found it from the browser;
+                        # the profile is the footer's link now.
                         create_link(
                             "radix-icons:github-logo",
-                            "https://github.com/pip-install-python",
-                            label="GitHub profile",
+                            GITHUB_URL,
+                            label="View the source on GitHub",
                             visible_from="md",   # hide on xs-sm: header is crowded on phones
                         ),
                         dmc.ActionIcon(

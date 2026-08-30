@@ -2,6 +2,8 @@
 name: Responsive
 description: Mobile-aware UX for the Event Calendar — a responsive event drawer, an auto-collapsing side panel, and panning the time grid to the current time.
 endpoint: /responsive
+category: Scheduler
+order: 8
 lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:cellphone-link

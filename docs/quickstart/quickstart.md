@@ -2,6 +2,8 @@
 name: Quickstart
 description: Install dash-mui-scheduler and render your first MUI X Scheduler calendar and timeline in Dash.
 endpoint: /quickstart
+category: Scheduler
+order: 1
 lastmod: 2026-08-01
 package: dash_mui_scheduler
 icon: mdi:rocket-launch-outline

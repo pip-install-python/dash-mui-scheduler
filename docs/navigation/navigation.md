@@ -2,6 +2,8 @@
 name: Navigation
 description: Navigate the dash-mui-scheduler EventCalendar through time by setting visibleDate, with Prev / Today / Next buttons computed in Python.
 endpoint: /navigation
+category: Scheduler
+order: 7
 lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:calendar-arrow-right

@@ -2,9 +2,10 @@
 name: Radial Bars
 description: Polar bar charts for comparing values along periodic categories, wrapping MUI X RadialBarChart (Premium, preview).
 endpoint: /radial-bars
+category: Radial Charts
+order: 2
 lastmod: 2026-07-16
 package: dash_mui_scheduler
-category: Charts
 icon: mdi:chart-arc
 ---
 

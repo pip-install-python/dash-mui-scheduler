@@ -2,9 +2,10 @@
 name: Radial Axes
 description: Configure the grid, radius axis, rotation axis, and axis highlight for the radial charts.
 endpoint: /radial-axes
+category: Radial Charts
+order: 3
 lastmod: 2026-07-16
 package: dash_mui_scheduler
-category: Charts
 icon: mdi:axis-arrow
 ---
 

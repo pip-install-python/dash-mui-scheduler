@@ -2,6 +2,8 @@
 name: Editing
 description: Create and edit events in dash-mui-scheduler — the edit dialog, event creation config, and read-only calendars or events.
 endpoint: /editing
+category: Scheduler
+order: 10
 lastmod: 2026-07-16
 package: dash_mui_scheduler
 icon: mdi:calendar-edit

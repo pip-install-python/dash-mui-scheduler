@@ -14,6 +14,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 package is unchanged — PyPI still carries 1.0.0.*
 
 ### Added
+- **A navigation bar you can find things in.** The sidebar is now Home ·
+  Changelog · Scheduler · Radial Charts · API · Resources, in that order, and
+  the order comes from each documentation page's own front matter rather than
+  a list kept somewhere else — a new page appears where it says it belongs.
+- **A `/changelog` page.** This file, as a timeline, with the same text served
+  to AI readers.
+- **An `/api` page: every component's props in one table.** Generated from the
+  installed `dash_mui_scheduler` package itself, so it cannot fall behind the
+  components actually shipped — `EventCalendar`, `EventCalendarPremium`,
+  `EventTimeline`, `RadialLineChart` and `RadialBarChart`, with each prop's
+  type, default and description.
+- **A footer**, and an *Other Apps* menu in the top bar listing the other
+  2plot sites — one place, from the network's own registry.
 - **This site now keeps a record of which AI crawler read which document.**
   Every time the machine-readable corpus is served — `/llms.txt`, a page's
   own `llms.txt`, the sitemap — the site keeps a row saying who asked, what
@@ -37,6 +50,10 @@ package is unchanged — PyPI still carries 1.0.0.*
   `Go-http-client`, were being counted as people. Anthropic's ClaudeBot was
   also filed as a search crawler when it is a training crawler. Expect a
   visible step in the day-over-day chart; it is the number becoming correct.
+- **Resources in the sidebar are now other people's docs only** — Dash Mantine
+  Components and the MUI X Scheduler this library wraps. The Dash community
+  forum link is gone, and the 2plot links moved to the new *Other Apps* menu
+  and footer so nothing is listed twice.
 - **Deployments now ship only what the test matrix has already passed.**
   Render builds a `release` branch that continuous integration writes after
   it goes green, so pushing to `main` proposes a deploy rather than
@@ -44,6 +61,23 @@ package is unchanged — PyPI still carries 1.0.0.*
   checks are still running.
 
 ### Fixed
+- **The GitHub icon in the top bar goes to this project's repository.** It
+  pointed at the author's profile page, so the one link a reader clicks to
+  find the source took them somewhere they had to search from. The profile
+  link now lives in the footer, where it belongs.
+- **Long code samples no longer stretch the page sideways on a phone.** A code
+  block inside a bulleted list or a quote widened the whole document instead
+  of scrolling inside its own box.
+- **The mobile navigation drawer always opens.** It was built the moment you
+  first tapped the button, and that could leave it empty.
+- **Pages without a table of contents now use the full width** instead of
+  leaving an empty column down the right-hand side.
+- **The sidebar no longer lists admin pages to people who cannot open them.**
+  They were shown to everyone and then correctly refused; now they are shown
+  only to the owner.
+- **Screen readers can name the controls.** The sidebar button, the code
+  "copy" button and the icon links all carry proper labels. (One remaining
+  audit finding sits in the MUI calendar itself and is upstream.)
 - **Link previews of this site no longer carry two conflicting image tags.**
   The page served to crawlers and social-media scrapers was given a preview
   image by the site on top of the one the documentation engine already

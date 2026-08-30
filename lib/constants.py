@@ -30,6 +30,14 @@ SITE_DESCRIPTION = (
 # would otherwise run past platform truncation points.
 SITE_SHORT_NAME = "dash-mui-scheduler"
 
+# The mark beside the logo in the top bar. Lives HERE and not as a literal in
+# components/header.py because a fork edits this file's identity block and
+# reasonably assumes that is the whole job — llms-2plot-dev shipped serving
+# the words "Dash Docs" beside its own logo for exactly that reason. The
+# header's aria-label derives from this, so the accessible name can never
+# disagree with the visible one.
+WORDMARK = SITE_SHORT_NAME
+
 # Prefixed to every per-page title. Dash passes page titles straight into
 # og:title / twitter:title, so this is the headline on every share card.
 # Derived, not retyped, so the two can't drift (test_site_identity pins it).
@@ -107,8 +115,21 @@ OG_IMAGE_ALT = SITE_BRAND
 # loop (PyPI project_urls and the GitHub README pointing back at this
 # subdomain) is a per-package checklist item, not code.
 PUBLISHER = "Pip Install Python LLC"
+# ONE constant for the REPOSITORY. The header's GitHub icon, JSON-LD
+# `sameAs` and anything else that names the source all read it (1.6.38).
+# Until then the icon pointed at the profile while sameAs named the repo —
+# two truths, one of them wrong, and the owner found it from the browser.
+GITHUB_URL = "https://github.com/pip-install-python/dash-mui-scheduler"
+
+# The OWNER's profile — the footer's GitHub link. The repo is the top bar's.
+GITHUB_PROFILE_URL = "https://github.com/pip-install-python"
+
+# The PyPI project stays alongside the repo here (this site documents a
+# published package; the template documents none): three properties pointing
+# at each other is the strongest statement of which URL is this package's
+# canonical docs home.
 SAME_AS = [
-    "https://github.com/pip-install-python/dash-mui-scheduler",
+    GITHUB_URL,
     "https://pypi.org/project/dash-mui-scheduler/",
 ]
 
@@ -133,6 +154,64 @@ def internal_ua(caller: str = "") -> str:
     side's logs. Only the token matters to the contract."""
     caller = (caller or "").strip()
     return f"{INTERNAL_UA} {caller}" if caller else INTERNAL_UA
+
+
+# ---------------------------------------------------------------------------
+# Navigation contract (1.6.38) — the parts of the sidebar and top bar that are
+# IDENTICAL on every host come from template code and the constants below; the
+# app's own sections come from each doc page's frontmatter. A fork edits THIS
+# block and its frontmatter, never components/navbar.py.
+# ---------------------------------------------------------------------------
+
+# This app's own sections, in sidebar order. Every docs page declares
+# `category:`; a category not listed here follows the listed ones,
+# alphabetically. Keep the names short — they are sidebar titles, and the
+# owner named THIS order (Home, Scheduler, Radial Charts, ...) as the shape
+# the fleet should follow.
+CATEGORY_ORDER = [
+    "Scheduler",
+    "Radial Charts",
+]
+
+# Network-wide community links — identical on every host.
+DISCORD_URL = "https://discord.gg/e5s5uHWUHH"
+YOUTUBE_URL = "https://www.youtube.com/@2plotai"
+YOUTUBE_SUBSCRIBE_URL = YOUTUBE_URL + "?sub_confirmation=1"
+DMC_URL = "https://www.dash-mantine-components.com/"
+
+# The upstream project this component library wraps. Rendered as the last
+# Resources link. These wrappers are a Dash surface over MUI's scheduler —
+# a reader who needs the behaviour behind a prop ends up in MUI's docs, so
+# the sidebar should take them there directly.
+UPSTREAM = {
+    "name": "MUI X Scheduler",
+    "url": "https://mui.com/x/react-scheduler/",
+    "icon": "logos:material-ui",
+}
+
+# Dash component packages whose props the generated /api page documents.
+# Empty would mean no /api page; this repo ships the package it documents,
+# so /api is generated from the installed wheel's metadata.json and can
+# never drift from the components actually shipped. The header's version
+# badge reads the first entry's version too.
+API_PACKAGES = ["dash_mui_scheduler"]
+
+
+def resources() -> list:
+    """The sidebar's Resources section: THIRD-PARTY ONLY (owner, 2026-08-30).
+
+    `dmc` and the upstream project. The owner's own links live in the top bar
+    (the repo) and the footer (profile, Discord, YouTube), never here; no
+    community.plotly.com, and no 2plot.dev — the network is the top bar's
+    Other Apps menu, listed once.
+    """
+    items = [
+        {"label": "dmc", "url": DMC_URL, "icon": "ic:baseline-design-services"},
+    ]
+    if UPSTREAM:
+        items.append({"label": UPSTREAM["name"], "url": UPSTREAM["url"],
+                      "icon": UPSTREAM.get("icon", "mdi:open-in-new")})
+    return items
 
 
 def require_owned_base_url(base_url: str = BASE_URL) -> None:
