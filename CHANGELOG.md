@@ -8,10 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 > The petri-dish evolution game this component grew up alongside now lives in its
 > own project (2plot.xyz); its 0.4.x–0.5.x history moved with it.
 
-## [Unreleased]
+## [2026-08-30] — a sidebar you can find things in, and a record of who reads the docs
 
 *Documentation site and repository plumbing only; the `dash_mui_scheduler`
-package is unchanged — PyPI still carries 1.0.0.*
+package is unchanged — PyPI still carries 1.0.0. Shipped as `4e8c00c` and
+deployed the same day.*
 
 ### Added
 - **A navigation bar you can find things in.** The sidebar is now Home ·

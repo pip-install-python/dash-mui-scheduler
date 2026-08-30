@@ -257,27 +257,46 @@ re-measure when you change what this host serves:
               of it is an uncertified push pending. ABSENT reads as
               `main`.
 
-RE-MEASURED on the wire 2026-08-30 (sync item 15's acceptance), build
-4a4ef49, with the real vendor UAs — ClaudeBot/1.0 and GPTBot/1.2, not a
-UA-less curl, which the package classifies separately:
+RE-MEASURED on the wire 2026-08-30 at build 4e8c00c — the build this
+round shipped, running the dash-improve-my-llms 2.8.0 floor — and read
+TWICE by two seats independently rather than transcribed once: this repo
+at 17:33Z and the ops seat at ~17:45Z, both sending
+`Accept: text/html,*/*;q=0.8` and the real vendor UAs (ClaudeBot/1.0 and
+GPTBot/1.2, never a UA-less curl, which the package classifies
+separately). Both reads agree on all nine cells:
 
-    /          ClaudeBot 200   GPTBot 200
-    /llms.txt  ClaudeBot 200   GPTBot 200
-    /healthz   ClaudeBot 200   GPTBot 200
+               /      /llms.txt   /healthz
+    ClaudeBot  200       200        200
+    GPTBot     200       200        200
+    Chrome 120 200       200        200
 
-and `robots.txt` carries no `Disallow` for either — no training stanza
-at all, which is the shape `block_ai_training=False` produces (they fall
-under `User-agent: *`). Item 15's flip is therefore `already-present`
-here: this host has allowed since it was built, and the numbers below
-are its measurement, not the hub's seeded table. The same six were read
-on 2026-08-29 and reproduced in-process on the 2.8.0 wheel this round
-ships — the STATUSES do not move at 2.8.0; the DOCUMENT on `/` does,
-because the lane now follows the package's vendor registry, so both
-vendors get the prerendered crawler prose where they used to get the app
-shell. A browser gets 200 on all three paths too, so on this host the
-fence has no asymmetry to record — which is itself the posture. Wire
-minus in-process is zero here: no edge wall, consistent with the owner's
-2026-08-30 finding that no Cloudflare AI-bot rule exists on this plan.
+and `robots.txt` carries ZERO `Disallow` lines — not merely none for
+those two vendors, none at all. That is the shape `block_ai_training=False`
+produces: no training stanza exists and they fall under `User-agent: *`.
+So item 15's flip is `already-present` here, and these numbers are this
+host's own measurement rather than the hub's seeded table.
+
+The browser row is in the table on purpose. On most satellites it is the
+row that differs — a blocked vendor gets 403 on the browser document
+while the agent surfaces stay open, and that asymmetry IS their posture.
+Here there is no asymmetry, and recording the identical third row is how
+this fence says so rather than leaving it to be inferred.
+
+What moved at the 2.8.0 floor is the DOCUMENT, not the status: the lane
+now follows the package's vendor registry, so ClaudeBot and GPTBot get
+the prerendered crawler prose on `/` where they used to get the app
+shell. Wire minus in-process is zero — no edge wall — consistent with the
+owner's 2026-08-30 finding that no Cloudflare AI-bot rule exists on this
+plan at all.
+
+`deploy: release-branch` was declared with sync item 13 and is now backed
+by a green promote: CD run 33318542986 (attempt 3) ended `success`, and
+`origin/release` == `origin/main` == the /healthz build == 4e8c00c. Note
+what that does and does not prove. A GREEN push shows the road works; it
+cannot show Render is watching `release`, because both refs hold the same
+sha and the two configurations are indistinguishable from the wire. The
+discriminating observation is the next push that goes RED on `main`:
+`release` must not move and the wire must not change.
 
 ```yaml posture
 ai_bots: {"/": 200, "/llms.txt": 200, "/healthz": 200}
