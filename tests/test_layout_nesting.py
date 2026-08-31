@@ -109,10 +109,17 @@ def test_a_docs_page_really_carries_its_parsed_content(registry, monkeypatch):
     docs page (derived from the registry: the first page that registered a
     TOC) must render real depth and contain its own heading."""
     monkeypatch.setenv("ALLOW_UNGATED_ADMIN", "0")
-    from lib.aside import ASIDE_PATHS
 
-    by_path = {p.get("path"): p for p in registry.values()}
-    page = by_path[sorted(ASIDE_PATHS)[0]]
+    # Derived from the REGISTRY (1.6.42), not from lib.aside: keying the
+    # control off ASIDE_PATHS makes it depend on the very module another pin
+    # in this file is meant to be independent of, and a fork whose docs
+    # register no aside would silently have no control at all. The first
+    # sidebar page is a docs page by construction.
+    from components.navbar import sections_for
+
+    sections = sections_for(registry.values())
+    assert sections, "the sidebar has no docs section — no control to derive"
+    page = sections[0][1][0]
     layout = _resolve(page["layout"])
 
     nodes: list = []

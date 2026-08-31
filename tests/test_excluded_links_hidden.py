@@ -38,7 +38,20 @@ def test_admin_paths_absent_from_sitemap_llms_and_sidebar(client, app):
     from components.navbar import create_content
 
     sitemap = client.get("/sitemap.xml").text
-    llms = client.get("/llms.txt").text
+    # THE CORPUS, not just /llms.txt (note 75, widened 1.6.42): the tier docs
+    # are separate documents built from the same prose, and /llms-full.txt is
+    # 28x the size of /llms.txt here — a path can be absent from the index and
+    # present in the full corpus. Measured on this host: /llms-full.txt does
+    # name both admin paths, in code-spans inside a CHANGELOG entry describing
+    # the feature. That is prose, not publication, which is why both clauses
+    # below are LINK-shaped: a markdown link `](path)` or the path's llms
+    # twin. A substring check would fail this host for writing about its own
+    # admin pages in its changelog.
+    corpus = "\n".join(
+        client.get(doc).text
+        for doc in ("/llms.txt", "/llms-small.txt", "/llms-full.txt")
+    )
+    llms = corpus
     tree = str(create_content(dash.page_registry.values()))
 
     leaked = []

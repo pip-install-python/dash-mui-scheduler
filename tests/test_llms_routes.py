@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import pytest
 
-from conftest import BROWSER_ACCEPT, CRAWLER_UA
+from conftest import BROWSER_ACCEPT, CRAWLER_UA, TEST_CLIENT_UA
 from lib import network_directory as nd
 from lib.constants import BASE_URL
 
@@ -201,6 +201,12 @@ def test_healthz_is_live_not_a_snapshot(monkeypatch):
     stub = SimpleNamespace(server=Flask("healthz_snapshot_pin"))
     register_health_route(stub, "flask")
     probe = stub.server.test_client()
+    # Name the lane (notes 70/74): a bare Werkzeug client sends
+    # `Werkzeug/x.y`, which dash-improve-my-llms >= 2.8 classifies as the
+    # CRAWLER lane. /healthz is not lane-split so this probe passes either
+    # way today — which is exactly why it is worth fixing before some
+    # future assertion here reaches a mark_hidden path and 404s.
+    probe.environ_base["HTTP_USER_AGENT"] = TEST_CLIENT_UA
     assert probe.get("/healthz").get_json()["app"] == "before"
 
     monkeypatch.setenv("SATELLITE_APP_KEY", "after")

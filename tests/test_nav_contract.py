@@ -581,11 +581,79 @@ def test_every_test_client_user_names_headers():
     at dimll ≥ 2.8 — so a mark_hidden page 404s and an every-page-200 loop
     goes red at the floor bump. Any file that drives `.test_client()` must
     pass headers (a named UA)."""
+    import ast
+
     offenders = []
     for folder in ("tests", "scripts"):
         for path in sorted((REPO / folder).glob("*.py")):
             src = path.read_text()
-            names_ua = "headers=" in src or "HTTP_USER_AGENT" in src
-            if ".test_client()" in src and not names_ua:
-                offenders.append(f"{folder}/{path.name}")
+            if ".test_client()" not in src:
+                continue
+            try:
+                tree = ast.parse(src)
+            except SyntaxError:  # pragma: no cover
+                continue
+            # PER CALL SITE, not per file. A file-wide `headers=` check passes
+            # a bare client sitting next to an unrelated one that does name a
+            # UA — measured here by mutation: stripping the UA off
+            # test_llms_routes' probe left a file-wide pin green.
+            #
+            # Each call site is judged by its ENCLOSING FUNCTION: the client is
+            # built and driven in the same scope, so if no `environ_base`,
+            # `headers=` or `HTTP_USER_AGENT` appears there, nothing named the
+            # lane for that client. Comments and docstrings are stripped first,
+            # so a file that merely DISCUSSES the trap (this one, at length)
+            # is not counted as driving a client — and walking the AST is also
+            # what stops this pin matching its own string literal.
+            scopes = [n for n in ast.walk(tree)
+                      if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module))]
+            for scope in scopes:
+                calls = [n for n in ast.walk(scope)
+                         if isinstance(n, ast.Call)
+                         and getattr(n.func, "attr", "") == "test_client"]
+                if not calls:
+                    continue
+                # Only the innermost scope owns a call — skip Module when a
+                # function below it already claimed the same call.
+                if isinstance(scope, ast.Module) and len(scopes) > 1:
+                    inner = {id(c) for f in scopes if not isinstance(f, ast.Module)
+                             for c in ast.walk(f)
+                             if isinstance(c, ast.Call)
+                             and getattr(c.func, "attr", "") == "test_client"}
+                    calls = [c for c in calls if id(c) not in inner]
+                    if not calls:
+                        continue
+                body = ast.get_source_segment(src, scope) or ""
+                body = "\n".join(line for line in body.splitlines()
+                                 if not line.lstrip().startswith("#"))
+                doc = ast.get_docstring(scope, clean=False)
+                if doc:
+                    body = body.replace(doc, "")
+
+                # TWO TIERS, because a client is used in one of two ways.
+                # Driven HERE (the probe pattern): the scope that builds it
+                # also calls it, so the scope must name the lane — this is
+                # the strict case the mutation check exercises. HANDED OFF
+                # (returned or yielded, like conftest's `client` fixture,
+                # which wraps it and names a UA on every request): the
+                # naming legitimately lives downstream, so the FILE is the
+                # unit. Judging a handed-off client by its own scope reports
+                # conftest as an offender for a wrapper that never omits a
+                # UA — measured.
+                handed_off = any(isinstance(n, (ast.Return, ast.Yield))
+                                 for n in ast.walk(scope))
+                haystack = src if handed_off else body
+                if handed_off:
+                    haystack = "\n".join(line for line in src.splitlines()
+                                         if not line.lstrip().startswith("#"))
+                # A USER-AGENT specifically, not merely `headers=`. Measured:
+                # test_llms_routes' probe sends `headers={"CF-IPCountry": ...}`,
+                # which satisfies a bare `headers=` grep while naming no lane
+                # at all — the mutation check stayed green until this was
+                # tightened.
+                if not any(tok in haystack for tok in
+                           ("environ_base", "HTTP_USER_AGENT",
+                            "user_agent=", "User-Agent")):
+                    where = getattr(scope, "name", "<module>")
+                    offenders.append(f"{folder}/{path.name}::{where}")
     assert offenders == [], offenders
