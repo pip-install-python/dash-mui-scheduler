@@ -74,6 +74,15 @@ BROWSER_UA = (
 )
 CRAWLER_UA = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 
+# For any test that drives a RAW `.test_client()` rather than the `client`
+# fixture (notes 70/74): a bare Werkzeug client sends `Werkzeug/x.y`, which
+# dash-improve-my-llms >= 2.8 puts on the CRAWLER lane — a mark_hidden page
+# then 404s and an every-page-200 loop goes red at the floor bump, for a
+# reason that has nothing to do with what the test meant to check. Name the
+# browser lane, and keep the internal-traffic token IN the string so a CI
+# sweep is never counted as N desktop humans in the ledger.
+TEST_CLIENT_UA = BROWSER_UA + " 2plot-internal/1.0 (+https://2plot.ai/docs/satellite-analytics) tests"
+
 # What a real browser sends. `/<page>/llms.txt` negotiates on this header —
 # not on the User-Agent — so it is what separates "a person opened the URL"
 # from "an agent fetched it".

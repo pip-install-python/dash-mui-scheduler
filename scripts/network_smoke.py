@@ -91,7 +91,15 @@ SAMPLE_PAGE = "/quickstart"
 
 # Owner-only surfaces that must 404 their llms.txt to an anonymous reader.
 # `/404` is this app's one hidden page (run.py calls `mark_hidden` on it).
+# Owner surfaces whose machine twin must 404 on the wire. The ADMIN pages
+# are the point (note 74): they were absent here until 1.6.42, so the battery
+# proved nothing about /admin/control-board or /admin/traffic while every
+# navbar and sitemap pin passed — structure hid them and the wire was never
+# asked. tests/test_nav_contract.py pins this tuple against the registry, so
+# an admin page added or renamed moves it in the same change.
 HIDDEN_DOC_PATHS = (
+    "/admin/control-board/llms.txt",
+    "/admin/traffic/llms.txt",
     "/404/llms.txt",
 )
 

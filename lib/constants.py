@@ -38,6 +38,19 @@ SITE_SHORT_NAME = "dash-mui-scheduler"
 # disagree with the visible one.
 WORDMARK = SITE_SHORT_NAME
 
+# The header's mark, lifted out of components/header.py (1.6.41) so that file
+# holds no fork content — the four seams this repo's item-16 report named as
+# the reason header.py could not be cargo. The asset lives under assets/; its
+# box sets only what the asset needs (an SVG has its own aspect ratio, so
+# height alone, where a raster logo would pin both); the wordmark's colour is
+# the `brand` ramp's shade 6 from components/appshell.py; and the breakpoint
+# is `md` rather than the template's `xs` because "dash-mui-scheduler" is
+# seventeen characters and crowds the burger and search below it.
+LOGO_ASSET = "dms_logo.svg"
+LOGO_STYLE = {"height": "36px"}
+WORDMARK_COLOR = "#3399ff"
+WORDMARK_VISIBLE_FROM = "md"
+
 # Prefixed to every per-page title. Dash passes page titles straight into
 # og:title / twitter:title, so this is the headline on every share card.
 # Derived, not retyped, so the two can't drift (test_site_identity pins it).

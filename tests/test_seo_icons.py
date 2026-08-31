@@ -18,6 +18,7 @@ Two contracts land with the 2.6.0 floor:
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -51,12 +52,39 @@ def test_discovery_agrees_with_the_declared_icons(app):
 
 
 def _declared_lastmods() -> set[str]:
+    """Every date a HUMAN wrote into a source file, from all three places
+    this site declares one. Read from the FILES, never from the app, so an
+    invented date still fails: a stamp the app emits that appears in none of
+    these is exactly the lie this pin exists to catch.
+
+    1. each docs page's `lastmod:` frontmatter;
+    2. CHANGELOG.md's dated release headings — /changelog's lastmod is its
+       newest one (pages/changelog.newest_date), and a release is dated by
+       hand when it ships;
+    3. the committed API extract's `generated` stamp — /api's lastmod
+       (lib/api_reference.slim_generated_on). scripts/build_api_metadata.py
+       moves it only when the component props actually change, so it is a
+       content date and survives a Docker rebuild, unlike an mtime.
+    """
     dates = set()
     for md in Path("docs").glob("**/*.md"):
         head = md.read_text().split("---")[1] if md.read_text().startswith("---") else ""
         m = re.search(r"^lastmod:\s*(\d{4}-\d{2}-\d{2})\s*$", head, re.MULTILINE)
         if m:
             dates.add(m.group(1))
+
+    changelog = Path("CHANGELOG.md")
+    if changelog.is_file():
+        dates |= set(re.findall(r"^## .*?(\d{4}-\d{2}-\d{2})",
+                                changelog.read_text(), re.MULTILINE))
+
+    for extract in Path(".").glob("*/api_metadata.json"):
+        try:
+            stamp = json.loads(extract.read_text()).get("generated")
+        except (ValueError, OSError):
+            continue
+        if stamp:
+            dates.add(stamp)
     return dates
 
 

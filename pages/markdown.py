@@ -36,6 +36,10 @@ class Meta(BaseModel):
     package: str = "dash_mui_scheduler"
     category: Optional[str] = None
     icon: Optional[str] = None
+    # Short sidebar label (1.6.41); default = name. Shortening `name:` would
+    # churn <title>, og:title and the llms.txt heading — this is the seam
+    # that changes the SIDEBAR alone.
+    nav: Optional[str] = None
     # Sidebar position within its category (1.6.38); ties break on name.
     order: int = 1000
     # Who may read this page: public | auth | admin | hidden. Absent means
@@ -68,6 +72,7 @@ class Meta(BaseModel):
 
 
 _SOURCE_DIRECTIVE = re.compile(r'^\.\. source::(.+?)$', re.MULTILINE)
+_KWARGS_DIRECTIVE = re.compile(r'^\.\. kwargs::(.+?)$', re.MULTILINE)
 _LANG_MAP = {
     'py': 'python', 'pyi': 'python',
     'js': 'javascript', 'jsx': 'jsx',
@@ -125,8 +130,63 @@ def _expand_source_directives(markdown_content: str) -> str:
         elif fence is None and _SOURCE_DIRECTIVE.match(line):
             out.append(expansion(line))
             continue
+        elif fence is None and _KWARGS_DIRECTIVE.match(line):
+            # Same fence rule, same reason: a `.. kwargs::` shown inside a
+            # fence is documentation of the syntax, not a directive to run.
+            out.append(_kwargs_table(_KWARGS_DIRECTIVE.match(line).group(1)))
+            continue
         out.append(line)
     return '\n'.join(out)
+
+
+def _kwargs_table(component_spec: str) -> str:
+    """The `.. kwargs::` props table as MARKDOWN, for the machine lane.
+
+    THE DEFECT THIS CLOSES (the fourth empty-/api mechanism, spec 1.6.42
+    highlight 7 as amended; measured on this host 2026-08-31): a
+    markdown2dash directive that renders Dash components puts its output in
+    the React tree ONLY. The machine lane, the dimll prerender and the
+    crawler HTML are all built from the markdown SOURCE, where the directive
+    line is stripped — so every prop table on this site existed for browsers
+    and for nobody else. On a component-documentation site that is not a
+    cosmetic gap: `/event-calendar/llms.txt` described the component and
+    listed not one of its props.
+
+    ONE SHARED PARSE, deliberately: this resolves the component through
+    lib.directives.kwargs — the same `_PACKAGE_MAP` and the same
+    `parse_dash_kwargs` the browser-lane directive uses — so the two lanes
+    cannot describe the same component differently. A second parser here
+    would be a second truth.
+    """
+    from lib.directives.kwargs import _PACKAGE_MAP, parse_dash_kwargs
+
+    spec = component_spec.strip()
+    if "." in spec:
+        abbr, component_name = spec.rsplit(".", 1)
+        package = _PACKAGE_MAP.get(abbr, abbr)
+    else:
+        package, component_name = "dash_mui_scheduler", spec
+    try:
+        import importlib
+        import inspect
+
+        component = getattr(importlib.import_module(package), component_name)
+        props = parse_dash_kwargs(inspect.getdoc(component))
+    except Exception as exc:  # noqa: BLE001
+        return f"\n<!-- kwargs: {spec} could not be resolved: {exc} -->\n"
+    if not props:
+        # Never silence. An empty spec rendering as nothing is exactly how
+        # this class of defect hides.
+        return f"\n<!-- kwargs: {spec} exposed no documented props -->\n"
+
+    rows = [f"#### `{component_name}` props\n",
+            "| prop | type | description |",
+            "|---|---|---|"]
+    for prop in props:
+        desc = " ".join((prop.get("description") or "").split()).replace("|", "\\|")
+        ptype = " ".join((prop.get("type") or "").split()).replace("|", "\\|")
+        rows.append(f"| `{prop['name']}` | {ptype} | {desc} |")
+    return "\n" + "\n".join(rows) + "\n"
 
 
 def _build_llms_doc(name: str, description: str, expanded_markdown: str, path: str) -> str:
@@ -195,6 +255,7 @@ for file in files:
         category=metadata.category,
         icon=metadata.icon,
         order=metadata.order,
+        nav=metadata.nav,
         # Pins og:image/twitter:image to the canonical origin. Without it Dash
         # infers assets/logo.svg — an SVG, which no social scraper renders.
         image_url=OG_IMAGE_URL,

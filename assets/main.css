@@ -677,12 +677,20 @@ code.m2d-codespan,
     overflow-wrap: anywhere;
     white-space: normal;
 }
-/* Every block a code sample can land in scrolls itself rather than the page:
-   the generated prop tables (`.. kwargs::`) included. */
-table.m2d-block-kwargs {
+/* Every block a code sample can land in scrolls itself rather than the page.
+   All THREE table classes, because they are genuinely different tables and a
+   rule that names one silently misses the others: markdown2dash stamps
+   `m2d-table` on the tables it renders, `.. kwargs::` prop tables carry
+   `m2d-block-kwargs` instead, and /api's generated component tables sit
+   inside `.m2d-block-props`. `width: max-content` is what makes the box
+   scroll rather than squeeze the columns. */
+table.m2d-table,
+table.m2d-block-kwargs,
+.m2d-block-props table {
     display: block;
-    overflow-x: auto;
+    width: max-content;
     max-width: 100%;
+    overflow-x: auto;
 }
 .mantine-CodeHighlight-root pre,
 .mantine-CodeHighlightTabs-root pre,

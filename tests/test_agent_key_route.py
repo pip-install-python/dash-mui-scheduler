@@ -10,6 +10,8 @@ from __future__ import annotations
 import flask
 import pytest
 
+from conftest import TEST_CLIENT_UA
+
 from lib import agent_key
 
 NO_STORE = "private, no-store"
@@ -22,9 +24,26 @@ class _App:
 
 @pytest.fixture
 def route_client():
+    """A raw client, so it must NAME its lane (notes 70/74).
+
+    This micro-app registers one route and never loads dash-improve-my-llms,
+    so no lane decision reaches it today — but the rule is blanket on purpose:
+    a bare client sends `Werkzeug/x.y`, which is the crawler lane at >= 2.8,
+    and the day this fixture grows to the real app that becomes a 404 nobody
+    is looking for. `environ_base` sets it once for every request the client
+    makes. The other half of the third-lane fix — asserting a mark_hidden page
+    404s to a CRAWLER — is on the real app, in
+    tests/test_traffic_page.py::test_the_page_is_hidden_from_every_machine_surface
+    and tests/test_excluded_links_hidden.py.
+    """
     server = flask.Flask(__name__)
     agent_key.register_agent_key_route(_App(server), "flask")
-    return server.test_client()
+    client = server.test_client()
+    # Flask's FlaskClient takes `environ_base` as an ATTRIBUTE, not an
+    # __init__ kwarg (measured on Flask 3.x: TypeError). Setting it here
+    # applies the UA to every request this client makes.
+    client.environ_base["HTTP_USER_AGENT"] = TEST_CLIENT_UA
+    return client
 
 
 def test_anonymous_gets_204_with_no_store(route_client):

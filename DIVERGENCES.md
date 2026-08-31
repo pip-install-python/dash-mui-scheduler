@@ -107,29 +107,7 @@ boundary between design and drift:
    holds the line from the source. Retire this entry when the template
    adopts the same context.
 
-8. **`components/header.py` keeps three pieces of this fork's identity
-   that the template hardcodes in the same file.** Sync item 16 (1.6.38)
-   makes navbar/header/footer cargo-eligible "once a fork carries the
-   constants block" — and this fork does: `WORDMARK`, `GITHUB_URL`,
-   `CATEGORY_ORDER`, `UPSTREAM`, `API_PACKAGES` and `resources()` are all
-   in `lib/constants.py` now, and `components/navbar.py` and
-   `components/footer.py` came across byte-identical. `header.py` did not,
-   and the reason is in the TEMPLATE's copy, not this one: it still names
-   `get_asset_url('ddb.png')`, `c="#03c7e5"` and `visibleFrom="xs"` on the
-   wordmark inline. This host's logo is `assets/dms_logo.svg` (an SVG —
-   the template's fixed `width: 36px` is wrong for it), its accent is
-   `#3399ff` (the `brand` ramp in components/appshell.py), and its
-   wordmark is `visibleFrom="md"` because "dash-mui-scheduler" is
-   seventeen characters and crowds the burger and search at xs. One more
-   difference is this fork's own: `create_link()` takes a `visible_from`
-   breakpoint so the GitHub icon drops on phone widths. A byte-copy of
-   the template's header would therefore ship this site the template's
-   logo and colour. Retire this entry when the template lifts the logo
-   asset, the wordmark colour and the wordmark breakpoint into
-   `lib/constants.py` — reported to the ops seat as the evidence item
-   16's reclass asked for.
-
-9. **`templates/index.html` declares ONE canonical, as the literal token
+8. **`templates/index.html` declares ONE canonical, as the literal token
    `__PAGE_URL__`; the template declares none.** Recorded 2026-08-30 after
    the ops seat read it as drift — it has been pinned by
    `tests/test_config.py::test_the_only_canonical_is_the_per_request_token`
@@ -156,7 +134,44 @@ boundary between design and drift:
    is what produced this repo's own false report of a duplicate, and it is
    the same trap the template hit on its note-63 probe. Count elements.
 
+9. **`pages/markdown.py` expands `.. kwargs::` into the prose, so the props
+   reach the MACHINE lane; the template's does not.** Ahead of the template
+   and measured here first, on spec 1.6.42's amended highlight 7 (the fourth
+   empty-props mechanism). A markdown2dash directive that renders Dash
+   components puts its output in the React tree ONLY — the machine lane, the
+   dimll prerender and the crawler HTML are all built from the markdown
+   SOURCE, where the directive line is stripped, and the renderer returns
+   None on empty so a broken spec renders as silence. Measured on this host
+   2026-08-31, before the fix: `/event-calendar/llms.txt` carried the prose
+   and NOT ONE of `EventCalendar`'s 33 props; the same was true of the
+   prerender and the app-shell markup. On a component-documentation site that
+   is the whole point of the page. The fix follows the `.. source::`
+   treatment already in this file — the same fence-aware walker, so a
+   directive shown inside a fenced block is still documentation and not a
+   command — and resolves the component through `lib/directives/kwargs.py`'s
+   own `_PACKAGE_MAP` and `parse_dash_kwargs`, ONE shared parse, so the two
+   lanes cannot describe the same component differently. An unresolvable
+   spec emits a visible marker rather than nothing, because silence is what
+   let this survive. `tests/test_kwargs_lane_parity.py` pins ROWS and row
+   CONTENT in all three curl-visible artifacts (never a section heading — a
+   heading pin passes on an empty table) and is MUTATION-CHECKED: disabling
+   the expansion turns four of its pins red. The template carries no
+   equivalent; retire this entry if it adopts one.
+
 ## Retired
+
+- ~~**`components/header.py` keeps three pieces of this fork's identity.**~~
+  RETIRED 2026-08-31, by adoption. Recorded at item 16 as the evidence that
+  file could not be cargo: the TEMPLATE's copy hardcoded `ddb.png`,
+  `c="#03c7e5"` and `visibleFrom="xs"` on the wordmark, so a byte-copy would
+  have shipped this site the template's logo and colour. Template 1.6.41
+  lifted all of it into `lib/constants.py` — `LOGO_ASSET`, `LOGO_STYLE`,
+  `WORDMARK_COLOR`, `WORDMARK_VISIBLE_FROM` — and adopted this fork's
+  `create_link(visible_from=)` parameter besides. `components/header.py` is
+  now BYTE-IDENTICAL to the template at 4ac02e0 and holds no fork content;
+  the identity lives in the constants block where a fork edits it. This is
+  the loop closing on a divergence that was always a template gap rather
+  than a real difference.
 
 - ~~**`scripts/network_smoke.py`'s default UA names the BROWSER lane.**~~
   RETIRED 2026-08-30, by adoption. Recorded here on 2026-08-29 as ahead of

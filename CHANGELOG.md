@@ -8,6 +8,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 > The petri-dish evolution game this component grew up alongside now lives in its
 > own project (2plot.xyz); its 0.4.x–0.5.x history moved with it.
 
+## [Unreleased]
+
+*Documentation site and repository plumbing only; the `dash_mui_scheduler`
+package is unchanged — PyPI still carries 1.0.0.*
+
+### Fixed
+- **Every component's props are now readable by AI assistants and search
+  engines, not just in a browser.** The prop tables on each component page
+  were drawn by JavaScript after the page loaded, so anything that reads the
+  page as text — an AI assistant asking what `EventCalendar` accepts, a
+  search crawler indexing the docs — saw the prose and not one of the 33
+  props. All three server-rendered versions of every page now carry the full
+  table.
+- **The pre-deploy check now asks whether the admin pages are really hidden.**
+  It checked the not-found page and nothing else, so the two owner-only pages
+  were never tested on the live site — they were correctly hidden, but by
+  luck rather than by check.
+- **The changelog page reads correctly.** Release badges no longer print a
+  stray "v" in front of a date, entries whose headings use a long dash are
+  dated again, and bold text wrapped around `code` renders as bold instead of
+  showing its asterisks.
+
+### Added
+- **A dated `/api` page.** Search engines are told when the component
+  reference last actually changed, rather than being left to guess.
+- **Sign-in-required pages are marked in the sidebar** with a small lock,
+  instead of looking like any other page until you click one.
+- **Long page names can carry a short sidebar label** — "Localization &
+  Timezones" now reads simply "Localization" in the sidebar while keeping its
+  full name everywhere else.
+
 ## [2026-08-30] — a sidebar you can find things in, and a record of who reads the docs
 
 *Documentation site and repository plumbing only; the `dash_mui_scheduler`

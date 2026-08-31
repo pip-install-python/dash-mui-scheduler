@@ -1,5 +1,6 @@
 ---
 name: Localization & Timezones
+nav: Localization
 description: Set the display timezone, 12h/24h clock, week start day, and translate UI labels in the dash-mui-scheduler calendar.
 endpoint: /localization
 category: Scheduler

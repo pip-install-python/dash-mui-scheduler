@@ -136,15 +136,32 @@ def test_the_sample_page_is_a_page_this_app_actually_has(battery, page_paths):
     )
 
 
-def test_the_hidden_paths_are_the_ones_run_py_marks_hidden(battery):
-    """A hidden page nobody listed here is a leak the battery cannot see."""
-    run_py = (REPO_ROOT / "run.py").read_text()
+def test_the_hidden_paths_are_really_marked_hidden(battery):
+    """Every path the battery calls hidden IS marked hidden somewhere.
+
+    The other direction from test_nav_contract's registry pin, and both are
+    needed: that one says no admin page is missing from the list, this one
+    says nothing in the list passes for the wrong reason (a path that is not
+    actually hidden 404s for some unrelated reason and the check reads green).
+
+    Scans the TREE, not just run.py: since 1.6.38 the admin pages call
+    `mark_hidden` in their own modules — pages/traffic.py and
+    pages/control_board.py — so a run.py-only grep would have failed the
+    moment those paths were listed, which is exactly what happened here.
+    """
+    sources = [(REPO_ROOT / "run.py").read_text()]
+    sources += [f.read_text() for f in (REPO_ROOT / "pages").glob("*.py")]
+    blob = "\n".join(sources)
     listed = {p.rsplit("/llms.txt", 1)[0] for p in battery.HIDDEN_DOC_PATHS}
     assert listed, "the battery lists no hidden paths at all"
     for path in listed:
-        assert f'mark_hidden("{path}")' in run_py, (
-            f"{path} is in the battery's hidden list but run.py does not mark "
-            "it hidden — the check would pass for the wrong reason"
+        marked = (f'mark_hidden("{path}")' in blob
+                  or f"mark_hidden({path!r})" in blob
+                  # pages/traffic.py marks its own path through a constant.
+                  or (path == "/admin/traffic" and "mark_hidden(TRAFFIC_PATH)" in blob))
+        assert marked, (
+            f"{path} is in the battery's hidden list but nothing in the tree "
+            "marks it hidden — the check would pass for the wrong reason"
         )
 
 

@@ -5,21 +5,49 @@ from dash_iconify import DashIconify
 from components.backend_badge import create_backend_badge
 from components.navbar import search_data
 from lib.backend import get_backend_info
-from lib.constants import API_PACKAGES, BASE_URL, GITHUB_URL, WORDMARK
+from lib.constants import (
+    API_PACKAGES,
+    BASE_URL,
+    GITHUB_URL,
+    HEADER_HEIGHT,
+    LOGO_ASSET,
+    LOGO_STYLE,
+    WORDMARK,
+    WORDMARK_COLOR,
+    WORDMARK_VISIBLE_FROM,
+)
+
+
+def create_clerk_avatar():
+    """Clerk avatar / sign-in control, sat beside the colour-scheme toggle.
+
+    Returns None when Clerk is not configured, so local development and any
+    deploy without the keys renders the header exactly as before rather than
+    erroring on a missing component. `lib/auth.py` registers Clerk with
+    `headless=True`, meaning the package injects NO UI of its own — without
+    this widget there is no way to sign in even though Clerk initialises.
+    The package renders `#clerk-login-button` inside it; since
+    dash-clerk-auth 0.9.2 that button's own handler is satellite-safe, so it
+    needs nothing from us.
+    """
+    from lib.auth import clerk_enabled
+
+    if not clerk_enabled():
+        return None
+    from dash_clerk_auth import create_clerk_menu
+
+    return create_clerk_menu(show_dropdown=True, dropdown_align="right")
 
 
 def create_link(icon, href, label, visible_from=None):
     """Create an external link icon button.
 
-    ``label`` is REQUIRED: an icon-only link has no accessible name, so screen
-    readers announce it as "link" and AI agents cannot tell what it does — the
-    Lighthouse/Agentic-Browsing failure measured across the fleet 2026-08-21.
-    The label lands on both the anchor and the button.
-
-    visible_from: optional Mantine breakpoint (e.g. "md") — the link is hidden
-    below it (this fork drops the GitHub icon on xs-sm phone widths, where the
-    header is crowded). NOTE that a hidden node also leaves the accessibility
-    tree, so anything load-bearing must not rely on being announced there.
+    ``label`` is REQUIRED: an icon-only link has no accessible name, so
+    screen readers announce it as "link" and AI agents can't tell what it
+    does — the exact Lighthouse/Agentic-Browsing failure measured on the
+    fleet 2026-08-21. The label lands on both the anchor and the button.
+    ``visible_from`` (a Mantine breakpoint) lets a link drop at phone
+    widths where the header runs out of room (1.6.41).
     """
     return dmc.Anchor(
         dmc.ActionIcon(
@@ -31,41 +59,19 @@ def create_link(icon, href, label, visible_from=None):
         ),
         href=href,
         target="_blank",
+        visibleFrom=visible_from,
         **{"aria-label": label},
-        **({"visibleFrom": visible_from} if visible_from else {}),
     )
-
-
-def create_clerk_avatar():
-    """Clerk avatar / sign-in control, sat beside the colour-scheme toggle.
-
-    Returns None when Clerk is not configured, so local development and any
-    deploy without the keys renders the header exactly as before rather than
-    erroring on a missing component (None is a legal Group child).
-    ``lib/auth.py`` registers Clerk with ``headless=True``, meaning the
-    package injects NO UI of its own — without this widget there is no way to
-    sign in even though Clerk initialises. The package renders
-    ``#clerk-login-button`` inside it; since dash-clerk-auth 0.9.2 that
-    button's own handler is satellite-safe, so it needs nothing from us.
-    """
-    from lib.auth import clerk_enabled
-
-    if not clerk_enabled():
-        return None
-    from dash_clerk_auth import create_clerk_menu
-
-    return create_clerk_menu(show_dropdown=True, dropdown_align="right")
 
 
 def create_other_apps_menu():
     """*Other Apps* — the network, from ONE registry (1.6.38).
 
     A hover menu in the top bar (the 2plot.dev shape the owner named as the
-    reference), populated from lib.network_directory's PRIMARY set: the
-    primary applications only, this app omitted, labelled by domain. The
-    sidebar's "2plot network" section is gone — this is the only place the
-    network is listed, so it cannot be listed twice, and the long
-    "name — role" titles that did not fit a sidebar go with it.
+    reference), populated from lib.network_directory: PEERS + AFFILIATED,
+    this app omitted, labelled by domain. The sidebar carries no network
+    section any more — this is the only place the network is listed, so it
+    cannot be listed twice.
     """
     from lib.network_directory import other_apps_for
 
@@ -142,13 +148,12 @@ def create_version_badge():
 
 def create_search(data):
     """Searchable dropdown for page navigation — the sidebar's pages and
-    nothing else (never /admin/*, never a hidden-tier page; components/navbar
-    decides, so the two lists cannot disagree)."""
+    nothing else (never /admin/*, never hidden-tier; components/navbar
+    decides)."""
     return dmc.Select(
         id="select-component",
         placeholder="Search pages...",
         searchable=True,
-        **{"aria-label": "Search pages"},
         clearable=True,
         w=240,
         size="sm",
@@ -157,6 +162,7 @@ def create_search(data):
         data=search_data(data),
         visibleFrom="sm",
         comboboxProps={"zIndex": 2000},
+        **{"aria-label": "Search pages"},
         styles={
             "input": {
                 "borderColor": "var(--mantine-color-gray-4)",
@@ -215,45 +221,46 @@ def create_header(data):
                             opened=True,
                             size="sm",
                             visibleFrom="md",
-                            **{"aria-label": "Toggle navigation sidebar"},
+                            **{"aria-label": "Toggle the documentation sidebar"},
                         ),
+                        # The home link's accessible name comes from the
+                        # aria-label, NOT the wordmark text: below xs the
+                        # wordmark is display:none (visibleFrom), which
+                        # removes it from the accessibility tree — without
+                        # the label the home link would have no name at
+                        # all on phones (the logo img is decorative,
+                        # alt=""). Two forks hit this independently;
+                        # visibleFrom (vs dropping the node) also keeps
+                        # the typing animation's target in the DOM.
                         dmc.Anchor(
                             dmc.Group(
                                 [
                                     html.Img(
-                                        src=get_asset_url('dms_logo.svg'),
-                                        alt="",   # decorative — the title text sits beside it in the same link
-                                        style={'height': '36px'}
+                                        src=get_asset_url(LOGO_ASSET),
+                                        alt="",
+                                        style=LOGO_STYLE,
                                     ),
                                     dmc.Text(
                                         WORDMARK,
                                         size="lg",
                                         fw=700,
-                                        c="#3399ff",
+                                        c=WORDMARK_COLOR,
                                         id="dash-docs-title",
-                                        # xs-sm: the logo alone identifies the app; the text would
-                                        # crowd the hamburger + search on phone widths
-                                        visibleFrom="md",
+                                        visibleFrom=WORDMARK_VISIBLE_FROM,
                                     ),
                                 ],
                                 gap="sm",
                             ),
                             href="/",
                             underline=False,
-                            # The home link's accessible name comes from THIS
-                            # label, not the wordmark text: below md the
-                            # wordmark is display:none (visibleFrom), which
-                            # removes it from the accessibility tree — and the
-                            # logo img is decorative (alt=""). Without the
-                            # label the home link has no name at all on
-                            # phones. Two forks hit this independently.
                             **{"aria-label": f"{WORDMARK} — home"},
                         ),
                     ],
                     gap="md",
                 ),
 
-                # Right section: Backend badge + OpenAPI (fastapi only) + Search + GitHub + Theme toggle
+                # Right section: Backend badge + OpenAPI (fastapi only) +
+                # Search + GitHub + Theme toggle + Clerk avatar (when on)
                 dmc.Group(
                     [
                         dmc.Box(create_backend_badge(), visibleFrom="sm"),
@@ -261,15 +268,11 @@ def create_header(data):
                         dmc.Box(create_version_badge(), visibleFrom="sm"),
                         create_search(data),
                         create_other_apps_menu(),
-                        # The REPOSITORY, from the one constant JSON-LD's
-                        # sameAs also reads (1.6.38). This icon pointed at
-                        # the profile — the owner found it from the browser;
-                        # the profile is the footer's link now.
                         create_link(
                             "radix-icons:github-logo",
                             GITHUB_URL,
-                            label="View the source on GitHub",
-                            visible_from="md",   # hide on xs-sm: header is crowded on phones
+                            "View the source on GitHub",
+                            visible_from="xs",   # the footer carries GitHub on phones
                         ),
                         dmc.ActionIcon(
                             [
@@ -288,16 +291,15 @@ def create_header(data):
                             color="yellow",
                             id="color-scheme-toggle",
                             size="lg",
-                            **{"aria-label": "Toggle color scheme"},
+                            **{"aria-label": "Toggle light / dark color scheme"},
                         ),
-                        # Optional Clerk auth: avatar / sign-in menu (None when off)
                         create_clerk_avatar(),
                     ],
                     gap="sm",
                 ),
             ],
             justify="space-between",
-            h=70,
+            h=HEADER_HEIGHT,
             px="xl",
         ),
     )
@@ -315,8 +317,7 @@ clientside_callback(
     Input("select-component", "value"),
 )
 
-# Mobile drawer search -> navigate (the header Select is hidden below `sm`,
-# so without this the drawer's own Select picks a page and nothing happens).
+# Mobile drawer search → navigate (the header Select is hidden below `sm`).
 clientside_callback(
     """
     function(value) {
@@ -332,10 +333,7 @@ clientside_callback(
 )
 
 # The overlay no longer covers the header, so the hamburger stays reachable
-# while the drawer is open — make a second tap CLOSE it. The old
-# `return true` could only ever open: tapping the burger again re-set opened
-# to the value it already had, and the drawer was stuck until the overlay
-# was tapped.
+# while the drawer is open — make a second tap close it.
 clientside_callback(
     """function(n_clicks, opened) { return !opened }""",
     Output("components-navbar-drawer", "opened"),
