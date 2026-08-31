@@ -539,6 +539,76 @@ def test_every_fleet_heading_shape_parses(tmp_path):
         assert not _re.match(r"^v(Unreleased|\d{4}-)", rendered_badge), "note 67(a): VUNRELEASED / v<date>"
 
 
+# Prose sections a changelog legitimately carries under `##`. THE FIXTURE
+# ABOVE COULD NOT CATCH THIS: it holds only release headings, so it never
+# asked what a NON-release heading does — and 1.6.41's widened match read
+# every one of these as a release (muicharts, 2026-08-31: a Timeline card
+# badged `Component License Requirements` and a page claiming 15 releases
+# where there are 14; this repo had two of its own).
+PROSE_HEADINGS = [
+    "## Migration Guides",
+    "## Support",
+    "## Component License Requirements",
+    "## Notes on upgrading",
+]
+
+
+def test_prose_headings_are_not_read_as_releases(tmp_path):
+    from pages.changelog import parse_changelog
+
+    body = "# Changelog\n\n" + "\n\n".join(
+        h + "\n\n- a bullet" for h in ["## [1.4.0] - 2026-08-03", *PROSE_HEADINGS]
+    )
+    p = tmp_path / "CHANGELOG.md"
+    p.write_text(body)
+    versions = parse_changelog(p)
+    assert [v["version"] for v in versions] == ["1.4.0"], (
+        "a prose section parsed as a release — the phantom-release defect"
+    )
+
+
+def test_this_repos_own_changelog_has_no_phantom_releases():
+    """The fixture proves the parser; this proves the FILE.
+
+    Counted against the HEADINGS, not against the labels (llms,
+    2026-08-31): its releases are `## [llms-2plot-dev 1.5.0]` — the project
+    name rides along because that changelog is read beside the package's —
+    so a pin demanding a bare version of every label rejected all six real
+    releases, and the fork had to port what it should have been able to
+    take. Brackets are the convention `parse_changelog` already trusts as
+    intent, so the property is: a heading becomes a release exactly when it
+    is bracketed or release-shaped, and prose sections stay prose.
+    """
+    from pages.changelog import CHANGELOG_PATH, _is_release_label, parse_changelog
+
+    headings = [
+        line for line in CHANGELOG_PATH.read_text(encoding="utf-8").split("\n")
+        if line.startswith("## ")
+    ]
+    expected = [
+        h for h in headings
+        if h.startswith("## [") or _is_release_label(re.split(r"\s+[-–—]\s+", h[3:])[0])
+    ]
+    prose = [h for h in headings if h not in expected]
+    if not prose:
+        # SKIP, never fail (modelviewer, 2026-08-31). A strictly-conformant
+        # Keep a Changelog file has no prose `## ` heading by construction,
+        # so asserting one here asks a fork to write prose it has no reason
+        # to write — the same class as a guard that assumes API_PACKAGES is
+        # non-empty. The authoring rule this is the second instance of: a
+        # non-vacuity guard must SKIP on the shapes a conformant fork can
+        # legitimately have, and assert only on the shapes it cannot. The
+        # exclusion property itself is already proven against the fixture
+        # in test_prose_headings_are_not_read_as_releases, so nothing is
+        # lost.
+        pytest.skip("this changelog is all releases; exclusion is pinned by the fixture")
+    versions = parse_changelog(CHANGELOG_PATH)
+    assert len(versions) == len(expected), (
+        f"/changelog renders {len(versions)} releases for {len(expected)} "
+        f"release headings; prose sections present: {prose}"
+    )
+
+
 def test_bold_spans_containing_inline_code_render(tmp_path):
     r"""Note 67(b): `**A \`/changelog\` page.** rest` rendered raw
     asterisks when code split before bold."""
@@ -563,16 +633,56 @@ def test_battery_hidden_paths_match_the_registry(app_module):
 
     admin = {p["path"] for p in dash.page_registry.values() if p["path"].startswith("/admin/")}
     assert admin, "no admin pages registered — the pin would be vacuous"
-    # SUBSET, not equality — a deliberate divergence from the template's pin.
-    # Equality would forbid `/404/llms.txt`, which this host also marks hidden
-    # (run.py) and which the battery has checked on the wire since before this
-    # item existed. Dropping it to satisfy an equality assertion would REMOVE
-    # live coverage to please a test, which is the opposite of note 74's
-    # point. The direction that matters is held: every admin page MUST be
-    # listed, so one added or renamed moves this tuple in the same change.
+    # SUBSET, not equality (this fork, accepted into the item 2026-08-31 —
+    # the shipped file still asserts equality). Equality deletes this host's
+    # real /404/llms.txt check and leaflet's deliberate canary. The direction
+    # that matters is held: every admin page MUST be listed.
     missing = {f"{p}/llms.txt" for p in admin} - set(HIDDEN_DOC_PATHS)
     assert not missing, (
         f"admin pages the battery never asks about on the wire: {sorted(missing)}"
+    )
+
+
+_REQUEST_METHODS = ("get", "post", "open", "request", "put", "delete", "head")
+
+
+def _code_only(src: str) -> str:
+    """Source with docstrings and `#` comments removed.
+
+    muicharts, 2026-08-31: the words pass while the header is gone — its
+    grep matched "User-Agent" inside an explanatory COMMENT, so deleting
+    the real header left the pin green. This one proved the point on
+    itself: the comment below describing the chained form made the pin
+    flag its own file.
+    """
+    src = re.sub(r'"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'', "", src)
+    return re.sub(r"#[^\n]*", "", src)
+
+
+def _client_names_a_ua(src: str, var: str) -> bool:
+    """Does `var` — a bound `.test_client()` — name a UA on the wire?
+
+    Either the client carries one for every request (`environ_base`), or
+    every request call on it passes `headers=`. A client that issues no
+    requests in this file cannot get the lane wrong here.
+    """
+    if re.search(re.escape(var) + r"\.environ_base\b[^\n]*HTTP_USER_AGENT", src):
+        return True
+    calls = [c for m in _REQUEST_METHODS for c in _calls(src, f"{var}.{m}")]
+    return bool(calls) and all(_names_a_ua(c) for c in calls)
+
+
+def _names_a_ua(call: str) -> bool:
+    """`headers=` is NOT evidence of a User-Agent (muischeduler, 2026-08-31).
+
+    A call passing `headers={"CF-IPCountry": "FR"}` satisfies a `headers=`
+    grep and names no lane at all — this repo had exactly that one, and its
+    mutation check stayed green until the pin asked for the UA specifically.
+    A fleet-wide grep on `headers=` reports clean trees that are not.
+    """
+    return any(
+        token in call
+        for token in ("HTTP_USER_AGENT", "user_agent=", "User-Agent", "USER_AGENT")
     )
 
 
@@ -580,80 +690,42 @@ def test_every_test_client_user_names_headers():
     """Notes 70/74: a bare test client sends `Werkzeug/x.y` — crawler lane
     at dimll ≥ 2.8 — so a mark_hidden page 404s and an every-page-200 loop
     goes red at the floor bump. Any file that drives `.test_client()` must
-    pass headers (a named UA)."""
-    import ast
+    pass a named UA.
 
+    Resolved per CALL SITE, not per file (pannellum, 2026-08-31): the
+    substring form this pin shipped with — `"headers=" in src` — read the
+    whole file, so a tool whose `headers=` sat on a DIFFERENT code path
+    (urllib probes) passed while all three of its in-process fetches were
+    bare, and it flagged a bare-app test with no dimll middleware and no
+    lane to get wrong. It missed the only real offender in the tree that
+    measured it.
+    """
     offenders = []
     for folder in ("tests", "scripts"):
         for path in sorted((REPO / folder).glob("*.py")):
-            src = path.read_text()
+            src = _code_only(path.read_text())
             if ".test_client()" not in src:
                 continue
-            try:
-                tree = ast.parse(src)
-            except SyntaxError:  # pragma: no cover
+            # `(?!\s*\.)` — a CHAINED call binds the RESPONSE, not the
+            # client (`body = app.server.test_client().get(...)`), and the
+            # first cut of this pin read `body` as an unnamed client with no
+            # requests and flagged a line that already passed headers (llms,
+            # 2026-08-31, measured on its test_prerender_idempotency.py).
+            bound = set(re.findall(r"(\w+)\s*=\s*[\w.]*\.test_client\(\)(?!\s*\.)", src))
+            bound |= set(re.findall(r"\.test_client\(\)\s+as\s+(\w+)", src))
+            # Chained calls still get checked — on the call itself, since
+            # there is no client name to follow.
+            for meth in _REQUEST_METHODS:
+                for call in _calls(src, f".test_client().{meth}"):
+                    if "headers=" not in call:
+                        offenders.append(f"{folder}/{path.name}::<chained {meth}>")
+            if not bound:
+                # Wrapped in place (conftest hands the raw client to a Client
+                # that always sends one) — no name to follow, so fall back.
+                if "headers=" not in src and "HTTP_USER_AGENT" not in src:
+                    offenders.append(f"{folder}/{path.name}")
                 continue
-            # PER CALL SITE, not per file. A file-wide `headers=` check passes
-            # a bare client sitting next to an unrelated one that does name a
-            # UA — measured here by mutation: stripping the UA off
-            # test_llms_routes' probe left a file-wide pin green.
-            #
-            # Each call site is judged by its ENCLOSING FUNCTION: the client is
-            # built and driven in the same scope, so if no `environ_base`,
-            # `headers=` or `HTTP_USER_AGENT` appears there, nothing named the
-            # lane for that client. Comments and docstrings are stripped first,
-            # so a file that merely DISCUSSES the trap (this one, at length)
-            # is not counted as driving a client — and walking the AST is also
-            # what stops this pin matching its own string literal.
-            scopes = [n for n in ast.walk(tree)
-                      if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module))]
-            for scope in scopes:
-                calls = [n for n in ast.walk(scope)
-                         if isinstance(n, ast.Call)
-                         and getattr(n.func, "attr", "") == "test_client"]
-                if not calls:
-                    continue
-                # Only the innermost scope owns a call — skip Module when a
-                # function below it already claimed the same call.
-                if isinstance(scope, ast.Module) and len(scopes) > 1:
-                    inner = {id(c) for f in scopes if not isinstance(f, ast.Module)
-                             for c in ast.walk(f)
-                             if isinstance(c, ast.Call)
-                             and getattr(c.func, "attr", "") == "test_client"}
-                    calls = [c for c in calls if id(c) not in inner]
-                    if not calls:
-                        continue
-                body = ast.get_source_segment(src, scope) or ""
-                body = "\n".join(line for line in body.splitlines()
-                                 if not line.lstrip().startswith("#"))
-                doc = ast.get_docstring(scope, clean=False)
-                if doc:
-                    body = body.replace(doc, "")
-
-                # TWO TIERS, because a client is used in one of two ways.
-                # Driven HERE (the probe pattern): the scope that builds it
-                # also calls it, so the scope must name the lane — this is
-                # the strict case the mutation check exercises. HANDED OFF
-                # (returned or yielded, like conftest's `client` fixture,
-                # which wraps it and names a UA on every request): the
-                # naming legitimately lives downstream, so the FILE is the
-                # unit. Judging a handed-off client by its own scope reports
-                # conftest as an offender for a wrapper that never omits a
-                # UA — measured.
-                handed_off = any(isinstance(n, (ast.Return, ast.Yield))
-                                 for n in ast.walk(scope))
-                haystack = src if handed_off else body
-                if handed_off:
-                    haystack = "\n".join(line for line in src.splitlines()
-                                         if not line.lstrip().startswith("#"))
-                # A USER-AGENT specifically, not merely `headers=`. Measured:
-                # test_llms_routes' probe sends `headers={"CF-IPCountry": ...}`,
-                # which satisfies a bare `headers=` grep while naming no lane
-                # at all — the mutation check stayed green until this was
-                # tightened.
-                if not any(tok in haystack for tok in
-                           ("environ_base", "HTTP_USER_AGENT",
-                            "user_agent=", "User-Agent")):
-                    where = getattr(scope, "name", "<module>")
-                    offenders.append(f"{folder}/{path.name}::{where}")
+            for var in sorted(bound):
+                if not _client_names_a_ua(src, var):
+                    offenders.append(f"{folder}/{path.name}::{var}")
     assert offenders == [], offenders

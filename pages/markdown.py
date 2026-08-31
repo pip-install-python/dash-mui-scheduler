@@ -73,6 +73,7 @@ class Meta(BaseModel):
 
 _SOURCE_DIRECTIVE = re.compile(r'^\.\. source::(.+?)$', re.MULTILINE)
 _KWARGS_DIRECTIVE = re.compile(r'^\.\. kwargs::(.+?)$', re.MULTILINE)
+_EXEC_DIRECTIVE = re.compile(r'^\.\. exec::(.+?)$', re.MULTILINE)
 _LANG_MAP = {
     'py': 'python', 'pyi': 'python',
     'js': 'javascript', 'jsx': 'jsx',
@@ -119,10 +120,59 @@ def _expand_source_directives(markdown_content: str) -> str:
         except Exception as exc:
             return f'\n<!-- Error reading {file_path}: {exc} -->\n'
 
+    def exec_target_file(module_path: str) -> str:
+        """`docs.quickstart.video` -> `docs/quickstart/video.py`."""
+        return module_path.strip().split('\n')[0].strip().replace('.', '/') + '.py'
+
+    def exec_expansion(module_path: str) -> str:
+        """The exec'd module's SOURCE — what an agent can actually use. A
+        rendered component cannot be serialised into markdown."""
+        target = exec_target_file(module_path)
+        try:
+            content = Path(target).read_text()
+            tail = '' if content.endswith('\n') else '\n'
+            return f'\n```python\n# File: {target}\n\n{content}{tail}```\n'
+        except FileNotFoundError:
+            return f'\n<!-- Error: exec target not found: {target} -->\n'
+        except Exception as exc:
+            return f'\n<!-- Error reading {target}: {exc} -->\n'
+
+    # DEDUPE FIRST: a directive whose target already has an explicit
+    # `.. source::` in this document stays quiet — 33 of this site's 34
+    # exec directives take that hand-paired road, and announcing a withheld
+    # source that is right there would be a false statement about the page.
+    # A `.. source::` for a DIFFERENT file does not dedupe, or the rule
+    # swallows the very directive it exists to catch.
+    lines = markdown_content.split('\n')
+    paired: set = set()
+    _f = None
+    for _line in lines:
+        _h = _line.lstrip()[:3]
+        if _f is None and _h in ('```', '~~~'):
+            _f = _h
+        elif _f is not None and _h == _f:
+            _f = None
+        elif _f is None:
+            _m = _SOURCE_DIRECTIVE.match(_line)
+            if _m:
+                paired.add(_m.group(1).strip())
+
     out: List[str] = []
     fence = None  # the marker that opened the block we are inside, if any
-    for line in markdown_content.split('\n'):
+    skip_options = False
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
         head = line.lstrip()[:3]
+        # A directive's own `    :option: value` continuation lines belong to
+        # it; dropping the directive without them leaves the options as prose.
+        if skip_options:
+            if line.strip().startswith(':') or not line.strip():
+                if line.strip():
+                    continue
+            skip_options = False
+
         if fence is None and head in ('```', '~~~'):
             fence = head
         elif fence is not None and head == fence:
@@ -134,6 +184,31 @@ def _expand_source_directives(markdown_content: str) -> str:
             # Same fence rule, same reason: a `.. kwargs::` shown inside a
             # fence is documentation of the syntax, not a directive to run.
             out.append(_kwargs_table(_KWARGS_DIRECTIVE.match(line).group(1)))
+            continue
+        elif fence is None and _EXEC_DIRECTIVE.match(line):
+            m = _EXEC_DIRECTIVE.match(line)
+            skip_options = True
+            opts = []
+            j = i
+            while j < len(lines) and lines[j].strip().startswith(':'):
+                opts.append(lines[j].strip())
+                j += 1
+            # `:code: false` is the AUTHOR saying this module is plumbing for
+            # an embed, not documentation — 12 of this site's 34 directives
+            # carry it. Expanding one publishes to the machine lane exactly
+            # what the browser lane deliberately hides. Skipped, but NOT
+            # silently: broken, hidden and absent must not look alike.
+            hidden = any(o.replace(' ', '').lower() == ':code:false' for o in opts)
+            target = exec_target_file(m.group(1))
+            if target in paired:
+                pass                      # dedupe wins; the source is already here
+            elif hidden:
+                out.append(
+                    f'\n<!-- component rendered from {target}; source withheld '
+                    f'by `:code: false` -->\n'
+                )
+            else:
+                out.append(exec_expansion(m.group(1)))
             continue
         out.append(line)
     return '\n'.join(out)
