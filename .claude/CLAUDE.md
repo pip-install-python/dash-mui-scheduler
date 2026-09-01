@@ -231,3 +231,38 @@ they win.
   build a descendant of the wanted sha, via the compare API)
   instead of going red at timeout, and the remedy is policy —
   actions PRs: human merge when green; never a bot actor on main.
+- WHICH BRANCH RENDER BUILDS CAN BE **measured on a GREEN push**, by
+  TIMING (leaflet, 1.6.43). `main == release == wire` at every step of
+  a promote tells you nothing — both configurations produce the same
+  three shas. Sample `/healthz` every ~45 s from the push and time the
+  swap against the **promote**, not the push: leaflet measured
+  build+swap at 2m03s from its promote, where a Render reacting to the
+  PUSH would have put that build live ~1m52s earlier. STRONG EVIDENCE,
+  NOT PROOF. The canonical discriminator is still the first push that
+  goes RED on main, with `release` unmoved and the wire unchanged.
+  Four hosts declined to call their `deploy:` fence row proven on a
+  green push; that refusal is the standard, and this host was one.
+- VERIFY THE ARTIFACT THE CLAIM IS ABOUT, AND SAY WHICH ONE. It runs
+  both ways. A props table absent from the crawler document is a defect
+  of the SITE, not of the harness — pannellum moved that assertion to
+  the lane that passed and the pin held for a fortnight over a corpus
+  serving zero props. WHEN A LANE DISAGREES, THAT IS THE FINDING. And
+  the inverse, which is worse because it sends someone hunting a bug
+  that does not exist: `curl https://…/ | grep -c skip-link` returns
+  **0** on a host where the skip link ships and works (excalidraw),
+  because it is a Dash component in `app.layout` and never in the
+  served markup. This repo's own version: a substring count of
+  `rel="canonical"` read 2 on a page carrying exactly ONE canonical
+  element, because the URL-sync script names the tag in a selector —
+  and that number nearly deleted a load-bearing tag.
+- ASSERT THE CORPUS IS NON-EMPTY BEFORE TRUSTING ANY NEGATIVE, and
+  print the count beside the result. A sweep that found nothing and a
+  sweep that swept nothing produce the same green. Measured on the
+  template 2026-09-01: its `.flake8` excludes `docs/*/`, so
+  `flake8 docs/` exits 0 with a file containing `def broken(:` — the
+  linter is not passing the file, it is not reading it; `py_compile`
+  sees it immediately. Same family: `pytest … | tail -2 && git commit`
+  takes the pipe's exit status from `tail`, so a red suite commits.
+  Here it was a row regex that counted a page's own hand-written
+  tables as prop rows, and a wire probe that grepped for a prop name I
+  had invented and duly reported the 0.

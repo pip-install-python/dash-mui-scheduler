@@ -399,6 +399,31 @@ class AnalyticsTracker:
         """
         if not isinstance(event, dict):
             return
+
+        # --- The internal-traffic contract, in the READ table too (1.6.43) --
+        #
+        # "Counted nowhere" has to include this table. `track_visit` has
+        # dropped token-carrying requests since the contract existed; this
+        # hook arrived with the 2.8.0 floor and never learned the rule, so
+        # every probe this network makes — the hub's hourly health sweep,
+        # this site's own post-deploy battery, CI — has been landing in
+        # `reads` and reporting itself to the board as a vendor. A contract
+        # that holds on one of two tables is half a contract.
+        #
+        # Keyed on `ua`: that is the field name in the package's
+        # `EVENT_FIELDS` (there is no `user_agent` there). Keying on the
+        # wrong name is a silent no-op, which is precisely this fix's own
+        # failure mode — so tests/test_internal_traffic.py asserts BOTH
+        # directions with the counts printed, and reads the field name from
+        # EVENT_FIELDS rather than trusting this comment.
+        #
+        # BEFORE the row build, deliberately: the drop is about whether the
+        # request is counted at all, not about which of its fields survive.
+        from lib.constants import INTERNAL_UA_TOKEN
+
+        if INTERNAL_UA_TOKEN in (event.get("ua") or "").lower():
+            return
+
         row = {k: event.get(k) for k in EVENT_FIELDS}
         if not KEEP_CLIENT_IP:
             row.pop("client_ip", None)

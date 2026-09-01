@@ -14,6 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 package is unchanged — PyPI still carries 1.0.0.*
 
 ### Fixed
+- **This site's own automated checks no longer appear in its traffic figures
+  as if they were AI crawlers.** The hourly health check, the post-deploy
+  test battery and continuous integration all identify themselves as internal
+  machinery, and visitor counts have always ignored them — but the newer
+  record of which documents get read did not, so the busiest "reader" of these
+  docs was this site checking on itself.
 - **Every component's props are now readable by AI assistants and search
   engines, not just in a browser.** The prop tables on each component page
   were drawn by JavaScript after the page loaded, so anything that reads the

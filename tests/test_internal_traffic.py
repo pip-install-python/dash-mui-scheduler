@@ -26,6 +26,7 @@ kept at all:
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime
 
 import pytest
@@ -247,3 +248,69 @@ def test_every_battery_script_sends_the_token(script):
     assert agents, f"scripts/{script}.py declares no User-Agent constant"
     missing = [ua for ua in agents if INTERNAL_UA_TOKEN not in ua]
     assert missing == [], f"scripts/{script}.py sends untokened UAs: {missing}"
+
+
+# ---------------------------------------------------------------- reads --
+#
+# "Counted nowhere" includes the READ table (1.6.43 item 1). record_read
+# arrived with the 2.8.0 floor and did not learn the rule, so every probe
+# this network makes — the hub's health sweep, this site's own post-deploy
+# battery, CI — was landing in `reads` and reporting itself to the board as
+# a vendor. Both directions in one test, with the COUNTS printed: a bare
+# "no rows" is the negative this round learned not to trust, and a drop
+# that dropped everything would pass a one-directional pin.
+
+
+def test_the_read_table_drops_internal_traffic_but_keeps_real_crawlers(
+    tmp_path, monkeypatch
+):
+    import json
+
+    import dash_improve_my_llms as _pkg
+    from dash_improve_my_llms._ledger import EVENT_FIELDS
+
+    from lib.analytics_tracker import AnalyticsTracker
+    from lib.constants import INTERNAL_UA
+
+    # The field name is READ from the package, never trusted from a comment:
+    # keying the drop on the wrong name is a silent no-op, which is this
+    # fix's own failure mode.
+    assert "ua" in EVENT_FIELDS and "user_agent" not in EVENT_FIELDS, EVENT_FIELDS
+
+    monkeypatch.setenv("ANALYTICS_GEO_LOOKUP", "0")
+    tracker = AnalyticsTracker(tmp_path / "ledger.json")
+
+    def _event(ua):
+        ev = {k: None for k in EVENT_FIELDS}
+        ev.update(ts=time.time(), path="/llms.txt", tier="index", lane="crawler",
+                  verdict="served", status=200, bytes=1234, ua=ua)
+        return ev
+
+    # The convention the ops seat named: a vendor token AND the internal
+    # token, so a probe is identifiable as a probe rather than writing an
+    # unverified vendor row.
+    internal = f"Mozilla/5.0 (compatible; GPTBot/1.2) {INTERNAL_UA} battery"
+    real = "Mozilla/5.0 AppleWebKit/537.36 (compatible; GPTBot/1.2; +https://openai.com/gptbot)"
+
+    tracker.record_read(_event(internal))
+    tracker.flush()
+    after_internal = json.loads((tmp_path / "ledger.json").read_text()).get("reads", []) \
+        if (tmp_path / "ledger.json").exists() else []
+
+    tracker.record_read(_event(real))
+    tracker.flush()
+    after_real = json.loads((tmp_path / "ledger.json").read_text())["reads"]
+
+    print(f"\n  dash-improve-my-llms resolved: {_pkg.__version__}"
+          f"\n  rows after the INTERNAL probe: {len(after_internal)}"
+          f"\n  rows after the REAL crawler:   {len(after_real)}")
+
+    assert len(after_internal) == 0, (
+        f"the internal probe wrote {len(after_internal)} read row(s) — "
+        "'counted nowhere' does not hold on the read table"
+    )
+    assert len(after_real) == 1, (
+        f"the real crawler wrote {len(after_real)} rows — a drop that drops "
+        "everything passes a one-directional pin and measures nothing"
+    )
+    assert after_real[0]["ua"] == real and after_real[0]["kind"] == "read"
