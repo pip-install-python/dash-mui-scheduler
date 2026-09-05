@@ -243,16 +243,39 @@ they win.
   instead of going red at timeout, and the remedy is policy —
   actions PRs: human merge when green; never a bot actor on main.
 - WHICH BRANCH RENDER BUILDS CAN BE **measured on a GREEN push**, by
-  TIMING (leaflet, 1.6.43). `main == release == wire` at every step of
-  a promote tells you nothing — both configurations produce the same
-  three shas. Sample `/healthz` every ~45 s from the push and time the
-  swap against the **promote**, not the push: leaflet measured
-  build+swap at 2m03s from its promote, where a Render reacting to the
-  PUSH would have put that build live ~1m52s earlier. STRONG EVIDENCE,
-  NOT PROOF. The canonical discriminator is still the first push that
-  goes RED on main, with `release` unmoved and the wire unchanged.
-  Four hosts declined to call their `deploy:` fence row proven on a
-  green push; that refusal is the standard, and this host was one.
+  TIMING (leaflet, 1.6.43; concrete form 1.6.44 item 17).
+  `main == release == wire` at every step of a promote tells you
+  nothing — both configurations produce the same three shas. STRONG
+  EVIDENCE, NOT PROOF: the canonical discriminator is still the first
+  push that goes RED on main, with `release` unmoved and the wire
+  unchanged. Four hosts declined to call their `deploy:` fence row
+  proven on a green push; that refusal is the standard, and this host
+  was one.
+  RUN `scripts/promote_sampler.py`, DO NOT RE-DERIVE IT LIVE. Three
+  things a hand-written watcher gets wrong, each earned by a host that
+  got it wrong:
+  SAMPLE THE WIRE AND THE RUN STATE IN THE SAME LOOP — **eight samples
+  at 45** s, one timeline (pannellum). Two separate reconstructions
+  invite exactly the arithmetic error the measurement exists to avoid.
+  pannellum's live pair: push 21:55:44Z · promote 21:58:20Z · wire
+  still OLD at 21:58:47Z · wire NEW at 21:59:33Z — 73 s after the
+  promote, 183 s after the push. The old-then-new bracket AROUND the
+  promote is the whole evidence; a single "new" sample proves nothing,
+  because it cannot say what it followed, and the sampler refuses to
+  report a bracket it did not observe.
+  TIME AGAINST THE PROMOTE STEP'S `completed_at`, NEVER THE DEPLOY
+  JOB'S (emojimart). The job CONTAINS the build-match wait, so it
+  completes after the swap BY CONSTRUCTION and the arithmetic reads
+  "swap before promote" every time — emojimart measured a 9 s
+  impossible ordering before catching it. A measurement that cannot
+  produce a sane answer is worse than none, because the number looks
+  like data.
+  AND THE SAMPLER MUST RETRY: three attempts per sample, recording
+  `unreadable` as a state DISTINCT from "old" (emojimart). The
+  container restart lands exactly where the bracket needs its sample,
+  so an un-retried loop is systematically blind at the only moment that
+  matters — and collapsing unreadable into old invents a bracket nobody
+  observed.
 - VERIFY THE ARTIFACT THE CLAIM IS ABOUT, AND SAY WHICH ONE. It runs
   both ways. A props table absent from the crawler document is a defect
   of the SITE, not of the harness — pannellum moved that assertion to
@@ -463,91 +486,6 @@ they win.
   card went blank or textual after a floor bump, look here before
   the template. Same class as the two lane traps above: name the UA,
   confirm from the body which document answered.
-- Which branch Render actually builds can be measured on a GREEN push,
-  by TIMING, without waiting for a red one (leaflet, 2026-08-31 — the
-  method, not just its answer). `main == release == wire` at every step
-  of a promote tells you nothing: both refs hold the same sha, so the
-  wire cannot separate them, and four promotes across three hosts said
-  nothing at all. Sample `/healthz` every ~45 s from the moment of the
-  push and note when the swap lands relative to the PROMOTE, not the
-  push. leaflet measured build+swap at 2m03s from the promote; had
-  Render reacted to the push instead, the same 2m03s would have put the
-  build live ~1m52s earlier than it appeared, and the wire was still
-  serving the old sha well past that point. That is STRONG EVIDENCE
-  that Render is building `release` — not proof, since a queued or slow
-  build could in principle produce the same shape. The canonical
-  discriminator is unchanged and still owed: the first push that goes
-  RED on main must leave `release` unmoved and the wire unchanged.
-  Worth taking on every SECOND promote — it costs one background
-  sampler and converts "asserted" into "strongly evidenced".
-  SAMPLE THE WIRE AND THE RUN STATE IN THE SAME LOOP — eight samples at
-  45 s, one timeline (pannellum's 15917bc promote, seat-verified; four
-  hosts now have a pair measured this way). Two separate reconstructions
-  invite exactly the arithmetic error the measurement exists to avoid:
-  flexlayout's retroactive read off CD step timestamps was coarser and
-  it said so. pannellum's live pair: push 21:55:44Z · promote 21:58:20Z ·
-  wire still OLD at 21:58:47Z · wire NEW at 21:59:33Z — 73 s after the
-  promote, 183 s after the push. The old-then-new bracket around the
-  promote is the whole evidence; a single "new" sample proves nothing
-  because it cannot say what it followed.
-  TIME AGAINST THE PROMOTE STEP'S `completed_at`, NEVER THE DEPLOY
-  JOB'S (emojimart 166e33a, seat-verified). The job CONTAINS the
-  build-match wait, so it completes after the swap by construction and
-  the arithmetic reads "swap before promote" every single time —
-  emojimart measured a 9 s impossible ordering before catching it. A
-  measurement that cannot produce a sane answer is worse than none,
-  because the number looks like data.
-  AND THE SAMPLER MUST RETRY: three attempts per sample, and record
-  "unreadable" as a state DISTINCT from "old" (emojimart). The container
-  restart lands exactly where the bracket needs its sample, so an
-  un-retried loop is systematically blind at the only moment that
-  matters — and collapsing unreadable into old invents a bracket that
-  was never observed. leaflet's run shows the shape: two consecutive
-  unreadable samples sit between its last old and first new.
-  THE TEMPLATE'S OWN PAIR, run 33576940156 / ac20ed1, 2026-09-02, and it
-  reproduces BOTH corrections rather than merely following them:
-    00:50:07Z  run created (push)
-    00:51:59Z  STEP 'Promote to release' completed_at
-    00:52:03Z  wire still old (2b1edd5)
-    00:52:53Z  wire UNREADABLE   <- the restart, inside the bracket
-    00:53:38Z  wire NEW (ac20ed1)
-    00:53:51Z  JOB 'deploy to render' completed_at
-  promote STEP -> swap = **99 s** (sane; pannellum 73 s, leaflet ~123 s).
-  deploy JOB -> swap = **-13 s** — the impossible ordering, reproduced on
-  the first host to try the method, which is why the step/job distinction
-  is in this trap and not a footnote. The UNREADABLE sample fell exactly
-  between last-old and first-new: folding it into "old" would have
-  reported a 45 s bracket nobody observed.
-  A SECOND PAIR ON THE SAME HOST, run 33595792466 / 4e17525, 2026-09-02,
-  and it CORRECTS the sentence above: 05:42:53Z created · 05:45:08Z
-  promote STEP · 05:45:26Z old · 05:46:16Z UNREADABLE · 05:47:01Z NEW ·
-  05:47:01Z deploy JOB. promote STEP -> swap = **113 s** (so 99 s was the
-  host, not that push's weather — stable to ~14 s across two runs) and
-  push -> swap = 248 s. But deploy JOB -> swap = **0 s**, not negative.
-  The earlier wording — "reads swap before promote every time" — is MINE
-  and it overstates: the job completes when the build-match wait SEES the
-  swap, so it tracks the swap and never the promote, landing at or after
-  it. Useless for timing either way, which is the point; predicting the
-  SIGN was a claim two runs did not support. And the UNREADABLE sample
-  landed inside the bracket twice out of two, which makes the retry a
-  property of the restart rather than one host's luck.
-  The inference at its real strength: had Render reacted to the PUSH at
-  00:50:07Z, the same 99 s build+swap would have served the new build by
-  ~00:51:46Z, and the wire was still old at 00:52:03Z — so it reacted to
-  the PROMOTE. Fifth host with a measured pair; still not proof, and the
-  red push on main remains the discriminator.
-  THE SAMPLER IS A SCRIPT NOW (1.6.44 item 17), so nobody re-derives it
-  under time pressure at the moment a promote is landing:
-  `python3 scripts/promote_sampler.py --sha <run sha>` — eight samples at
-  45 s, one loop over the wire and the run state, three attempts per
-  sample, `unreadable` recorded as its own state, and it REFUSES to
-  report a bracket it did not observe (no OLD sample before the first
-  NEW is an error, not a result, because a single "new" sample cannot
-  say what it followed). Start it BEFORE the promote. It prints the
-  bracket and then tells you to time against the promote STEP's
-  `completed_at`; it deliberately does not read the job's, because the
-  only thing that number can produce is a wrong answer that looks like
-  data.
 - And the same family one turn later, MEASURED TWICE — this seat and
   clerkhook hit it independently within the hour, so it is a property of
   the technique and not one seat's slip: extracting a package constant with

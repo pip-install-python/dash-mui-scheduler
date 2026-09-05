@@ -676,13 +676,44 @@ def test_the_fork_is_current_against_a_reachable_template():
         (REPO / ".claude" / "CLAUDE.md").read_text(), template.read_text())
     names = [kt.key(m) for m in missing]
 
-    # Items 18 and 19 add their own traps later in this same drop. Named
-    # individually so the exemption cannot quietly cover a third.
+    # Named individually so an exemption cannot quietly cover a third.
+    #
+    # The first two are items 18 and 19, which add their own traps later in
+    # this same drop.
+    #
+    # The third is a FALSE ABSENCE — the exact failure mode item 14's notes
+    # predict — and it is kept as one rather than fixed by reshaping prose to
+    # please a tool. This fork's trap 3(a) opens with its OWN adapted
+    # sentence and then carries the template's full method beneath it; the
+    # matcher compares only the FIRST SENTENCE, which here shares 43% of the
+    # template's opening tokens. The substance is asserted separately below,
+    # so the exemption is not a hole.
     pending = {"a verify verdict is metering evidence, never sole authorisat",
-               "a proxied robots.txt is not your robots.txt (1.6.44 item 19;"}
+               "a proxied robots.txt is not your robots.txt (1.6.44 item 19;",
+               "which branch render actually builds can be measured on a gre"}
     unexplained = [n for n in names
                    if not any(n.startswith(p[:40]) for p in pending)]
     assert unexplained == [], (
         f"fork {fork_n} / template {template_n}; missing and unaccounted "
         f"for: {unexplained}"
+    )
+
+
+def test_trap_3a_carries_its_substance_whatever_the_matcher_says():
+    """The exemption above is not a hole: the trap is here, in full.
+
+    1.6.44 item 17's detect — the three phrases, matched with whitespace
+    FLATTENED and emphasis stripped, because two of them sit inside `**`
+    and a code span in this kit.
+    """
+    flat = _normalise((REPO / ".claude" / "CLAUDE.md").read_text())
+    for phrase in ("eight samples at 45", "completed_at", "unreadable"):
+        assert phrase in flat, f"trap 3(a) has lost {phrase!r}"
+    assert flat.count("which branch render builds can be") == 1, (
+        "trap 3(a) is duplicated — item 17 says AMEND IN PLACE, and two "
+        "copies is how a correction ends up applying to only one of them"
+    )
+    assert "scripts/promote_sampler.py" in flat, (
+        "the trap no longer names the script, so a seat will re-derive the "
+        "method live — which is what item 17 exists to stop"
     )
