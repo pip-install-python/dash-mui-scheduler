@@ -293,3 +293,30 @@ they win.
   (yaml.safe_load), actionlint NOT RUN — not installed here", never as
   lint-clean. The general form: when the check you ran differs from
   the check CI runs, say which one you ran.
+- PARSE IT, OR STRIP COMMENTS **AND STRINGS** (1.6.44 item 13). A
+  source detect that greps raw text reports the defect that the
+  documentation of its absence describes. STRIPPING COMMENTS IS NOT
+  THE FIX — it is the half-measure that looks like the fix, because a
+  docstring is a string, not a comment. Both halves happened inside
+  this repo's own 1.6.44 build: item 9 added a module docstring to
+  `lib/asgi_middleware.py` explaining why there is no
+  `HeadAsGetMiddleware`, and the grep-based guard asserting the shim
+  was absent went RED on a tree that has no shim in it. The
+  progression to copy is raw grep, comment strip, `ast.parse`, and
+  only the third is right: walk for `ClassDef`/`FunctionDef` names and
+  `Name`/`Attribute` ids, then assert the parse found definitions at
+  all, so an unreadable file cannot pass as a clean one. The reason
+  the class recurs is worth naming — a good comment explains the
+  ABSENCE of the thing a detect hunts, so the better the code is
+  documented, the more reliably a raw grep reports the defect it is
+  documenting the absence of. The detects most likely to be wrong are
+  the ones on the best-explained code.
+  PROSE detects have the same disease in a different costume, and it
+  is FORMATTING-bound: flatten whitespace before matching (a phrase
+  that WRAPS across two lines is one string to a reader and two to a
+  regex), strip markdown emphasis (`**measured on a GREEN\npush**`
+  carries `**` inside the phrase), and strip an indented blockquote's
+  `> ` markers. Read case-INSENSITIVELY: the SYNC-1.6.43 item-3
+  detects all read 1 on this tree flattened and case-folded, and all
+  read 0 against the capitalised literal — the phrases are here, and a
+  case-sensitive grep would report them missing.

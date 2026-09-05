@@ -470,3 +470,79 @@ def test_a_raw_grep_would_have_got_this_wrong():
         "the prose explaining the absent shim is gone; if that is deliberate, "
         "this pin has lost its subject"
     )
+
+
+# ------------------ 1.6.44 item 13: parse, or strip comments AND strings --
+#
+# The item's own file is `sync/README.md`, which is the TEMPLATE's — specs are
+# authored there and this fork has no sync/ directory. What ports is the RULE,
+# and it belongs in the kit, which is what a seat at this repo actually reads.
+
+
+def _normalise(text: str) -> str:
+    """Flatten whitespace, strip emphasis and blockquote markers, casefold.
+
+    Three formatting hazards, all of which have produced a false negative
+    somewhere in the fleet:
+      * a phrase that WRAPS across two lines is one string to a reader and
+        two to a regex;
+      * `**measured on a GREEN\\npush**` carries `**` INSIDE the phrase
+        (ops' correction, from pannellum);
+      * an indented blockquote's `> ` markers land mid-sentence.
+    """
+    flat = re.sub(r"^\s*>\s?", " ", text, flags=re.M)
+    flat = flat.replace("**", "").replace("__", "").replace("*", "")
+    return re.sub(r"\s+", " ", flat).lower()
+
+
+SYNC_1_6_43_ITEM_3_PHRASES = (
+    "measured on a green push",
+    "corpus is non-empty",
+    "when a lane disagrees",
+    "verify the artifact the claim is about",
+)
+
+
+def test_the_1_6_43_trap_phrases_are_present_read_case_insensitively():
+    """Item 13's acceptance, run against this tree.
+
+    All four read 1 flattened and case-folded. All four read 0 against the
+    capitalised literal — the phrases ARE here, and a case-sensitive grep
+    reports them missing. That mechanism is kept as evidence rather than as a
+    sentence about the past.
+    """
+    kit = (REPO / ".claude" / "CLAUDE.md").read_text()
+    flat = _normalise(kit)
+
+    missing = [p for p in SYNC_1_6_43_ITEM_3_PHRASES if p not in flat]
+    assert missing == [], f"trap phrases absent from the kit: {missing}"
+
+    literal = [p for p in SYNC_1_6_43_ITEM_3_PHRASES if p in kit]
+    assert literal == [], (
+        "a phrase now matches the lowercase literal too, so this test no "
+        f"longer demonstrates why the read must be case-insensitive: {literal}"
+    )
+
+
+def test_the_normaliser_survives_the_formatting_that_broke_the_detects():
+    """The three hazards, each shown to break a naive match and be fixed."""
+    wrapped = "WHICH BRANCH RENDER BUILDS CAN BE **measured on a GREEN\n  push**, by TIMING"
+    # the marker lands INSIDE the phrase, which is the case that bites
+    quoted = "> ASSERT THE corpus is\n>   non-empty BEFORE TRUSTING ANY NEGATIVE"
+
+    for sample, phrase in ((wrapped, "measured on a green push"),
+                           (quoted, "corpus is non-empty")):
+        assert phrase not in sample.lower(), (
+            "this sample no longer demonstrates the hazard"
+        )
+        assert phrase in _normalise(sample)
+
+
+def test_the_kit_states_the_rule_about_strings_not_only_comments():
+    """Item 13's detect: the rule must name STRINGS, not only comments."""
+    flat = _normalise((REPO / ".claude" / "CLAUDE.md").read_text())
+    assert "strip comments and strings" in flat, (
+        "the kit's rule still says comments only — a docstring is a string, "
+        "and that half is where this repo's own 1.6.44 build went red"
+    )
+    assert "a docstring is a string" in flat
