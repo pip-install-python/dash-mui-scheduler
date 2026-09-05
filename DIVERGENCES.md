@@ -313,6 +313,41 @@ sha and the two configurations are indistinguishable from the wire. The
 discriminating observation is the next push that goes RED on `main`:
 `release` must not move and the wire must not change.
 
+10. **No `HeadAsGetMiddleware`, and it is not coming back** (1.6.44
+    item 2). The template carried a Starlette shim from 1.6.32/33 that
+    rewrote HEAD to GET above the router, and RETIRED it at 1.6.44 once
+    dimll 2.9.4 began walking the router and adding HEAD itself. **This
+    repo never had the shim** — the 1.6.32/33 fix was never ported here,
+    the same gap pannellum found in itself — so item 2 had nothing to
+    retire and this is the record half of "retire or record".
+
+    Measured in-process before any change, 5 paths x 3 UAs, at the
+    resolved wheel (dimll 2.8.0): flask **15/15** pairs matched, fastapi
+    **11/15** — HEAD 405 on `/healthz` to all three UAs, and on `/` to a
+    browser UA. Production, on the wire the same day, 15/15: the deployed
+    image resolved a newer wheel than this venv, which is the
+    CI-vs-production gap `llms_version` now makes readable and which
+    `requirements.txt` structurally cannot answer.
+
+    Of those four, one was ours and is fixed at the route:
+    `lib/asgi_routes` declares `methods=["GET", "HEAD"]` on `/healthz`,
+    because FastAPI's `APIRoute` takes `methods` literally where Werkzeug
+    and `starlette.routing.Route` both derive HEAD from GET. That took the
+    ASGI lane to **14/15**. The remaining pair is `/` to a browser UA:
+    Dash's lifespan-registered page catch-all, which nothing in this repo
+    can declare methods on and which dimll >= 2.9.4 fixes for us. It is
+    exempted by VERSION in `tests/test_head_method.py`, not by name, so
+    the fleet pin at 1.6.45 re-arms the assertion without anyone editing
+    the file.
+
+    The template would otherwise have this repo delete a middleware it
+    does not have; a sync must not read the absence as drift, and must
+    not "restore" the shim either. A HEAD-to-GET converter above the
+    router makes every route look correct whatever the router does — it
+    masks the package's fix exactly as well as it hid the original
+    defect. `tests/test_head_method.py::test_no_head_shim_sits_above_the_router`
+    keeps it out.
+
 ```yaml posture
 ai_bots: {"/": 200, "/llms.txt": 200, "/healthz": 200}
 healthz: full

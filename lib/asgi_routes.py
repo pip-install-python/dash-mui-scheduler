@@ -145,7 +145,24 @@ def build_api_router(app, backend_info) -> APIRouter:
 def build_health_router() -> APIRouter:
     router = APIRouter(tags=["health"])
 
-    @router.get("/healthz", response_model=HealthResponse, summary="Liveness probe")
+    # GET **AND HEAD** (1.6.44 item 2). FastAPI's APIRoute takes `methods`
+    # literally — unlike Werkzeug, which derives a HEAD rule from every GET
+    # rule, and unlike starlette.routing.Route, which adds HEAD wherever GET
+    # is present. So `@router.get` alone answers **405 to HEAD** on the lane
+    # this service actually runs, and `/healthz` is the default probe method
+    # of most uptime monitors AND this host's own deploy proof.
+    #
+    # MEASURED on this tree before the fix, FastAPI lane, dimll 2.8.0:
+    # HEAD /healthz -> 405 on all three UAs while GET -> 200. This repo never
+    # carried HeadAsGetMiddleware (see DIVERGENCES), so nothing above the
+    # router was papering over it.
+    #
+    # Declared here rather than shimmed above the router on purpose: a
+    # middleware that converts HEAD to GET makes every route look correct
+    # whatever the router does, which MASKS the package's own fix as
+    # effectively as it hid this defect.
+    @router.api_route("/healthz", methods=["GET", "HEAD"],
+                      response_model=HealthResponse, summary="Liveness probe")
     def healthz(request: Request) -> HealthResponse:
         from lib.health import health_payload
 

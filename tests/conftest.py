@@ -192,6 +192,28 @@ class Client:
         r = self._raw.get(path, headers=headers)
         return Response(r.status_code, r.text, dict(r.headers), r.content)
 
+    def head(self, path: str, user_agent: str = BROWSER_UA,
+             accept: str = None) -> Response:
+        """The same request with the method swapped (1.6.44 item 2).
+
+        A method the fleet reads with and nothing here could issue: CI never
+        sent one, both live tools GET (correctly — "probe with GET, never
+        HEAD" is the standing rule precisely BECAUSE of this defect), and a
+        browser never sends HEAD for a document. So the 405s hid.
+        """
+        headers = {"User-Agent": user_agent}
+        if accept is not None:
+            headers["Accept"] = accept
+
+        if self._kind == "werkzeug":
+            r = self._raw.open(path, method="HEAD", headers=headers)
+            body = r.get_data()
+            return Response(r.status_code, body.decode("utf-8", "replace"),
+                            dict(r.headers), body)
+
+        r = self._raw.head(path, headers=headers)
+        return Response(r.status_code, r.text, dict(r.headers), r.content)
+
 
 @pytest.fixture(scope="session")
 def client(app):

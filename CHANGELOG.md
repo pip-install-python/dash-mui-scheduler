@@ -24,6 +24,11 @@ package is unchanged — PyPI still carries 1.0.0.*
   taken from the deployment's own description of itself.
 
 ### Fixed
+- **Uptime monitors can check this site the way they normally do.** A
+  lightweight "are you alive?" request — the default for most monitoring
+  services, and the one this site's own deploy check uses — was answered with
+  "method not allowed" on the health endpoint rather than a status. Full
+  requests always worked, which is why nobody noticed.
 - **The version answer reached only half of this site.** The two ways this
   site can be served describe their responses differently, and the stricter
   one silently discarded any field it had not been told about in advance —
