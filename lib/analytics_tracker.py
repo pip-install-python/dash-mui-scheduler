@@ -569,9 +569,14 @@ class AnalyticsTracker:
                 stats[dt] = stats.get(dt, 0) + 1
                 stats["total"] = stats.get("total", 0) + 1
 
-            data["visits"] = _prune(visits)
+            # visits: date window AND the count cap — one row per pageview,
+            # and this table is the file's size risk.
+            data["visits"] = _prune(visits, cap=True)
             read_rows.extend(reads)
-            data["reads"] = _prune(read_rows, stamp=_read_stamp)
+            # reads: DATE ONLY (1.6.44 item 21). A crawler sweep can serve
+            # thousands of documents in minutes, so a count cap would delete
+            # in-window rows recording the very event this table exists for.
+            data["reads"] = _prune(read_rows, stamp=_read_stamp, cap=False)
 
             # Atomic replace: a crash mid-write can't leave a truncated ledger.
             tmp = path.with_suffix(path.suffix + ".tmp")
@@ -600,12 +605,29 @@ def _read_stamp(r):
         return ""
 
 
-def _prune(rows, stamp=_visit_stamp):
-    """Drop rows older than the retention window, then cap the total."""
+def _prune(rows, stamp=_visit_stamp, cap=True):
+    """Drop rows older than the retention window, and optionally cap the total.
+
+    `cap` IS THE WHOLE OF 1.6.44 ITEM 21, and it is a parameter rather than a
+    rule baked in here because the two tables want different answers:
+
+    * `visits` KEEPS the count cap. It is one row per pageview on a public
+      docs site and it is the file's size risk.
+    * `reads` MUST NOT be capped by count. A single crawler sweep can serve
+      thousands of corpus documents in minutes, so a count cap silently
+      deletes IN-WINDOW read rows — the evidence of exactly the event the
+      table exists to record — and the deletion looks like the crawler
+      simply not having come. Reads are pruned by DATE only; the retention
+      window is the bound.
+
+    The choice per table therefore lives at the CALL SITE, and it is
+    source-pinned there by AST in tests/test_read_ledger.py: a behavioural
+    test cannot see a `cap=True` restored above it.
+    """
     if RETENTION_DAYS > 0:
         cutoff = (datetime.now() - timedelta(days=RETENTION_DAYS)).isoformat()
         rows = [v for v in rows if stamp(v) >= cutoff]
-    if MAX_VISITS > 0 and len(rows) > MAX_VISITS:
+    if cap and MAX_VISITS > 0 and len(rows) > MAX_VISITS:
         rows = rows[-MAX_VISITS:]
     return rows
 

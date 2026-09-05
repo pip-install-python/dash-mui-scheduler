@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import time
 import warnings
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
@@ -140,3 +141,105 @@ def test_a_pre_1_6_34_ledger_gains_reads_without_losing_visits(tmp_path):
     t.flush()
     data = json.loads(p.read_text())
     assert len(data["visits"]) == 1 and len(data["reads"]) == 1
+
+
+# ------------------- 1.6.44 item 21: reads are never pruned by count --
+
+
+def test_reads_are_pruned_by_date_and_never_by_count(tmp_path, monkeypatch):
+    """20,001 in-window read rows plus one outside it.
+
+    All 20,001 survive; the dated one is gone. A crawler sweep can serve
+    thousands of documents in minutes, so a count cap deletes the evidence of
+    exactly the event this table exists to record — and the deletion looks
+    like the crawler simply not having come.
+    """
+    import lib.analytics_tracker as tracker_mod
+
+    now = datetime.now()
+    old = (now - timedelta(days=tracker_mod.RETENTION_DAYS + 5)).timestamp()
+    rows = [{"ts": now.timestamp(), "path": f"/p{i}.txt", "kind": "read"}
+            for i in range(tracker_mod.MAX_VISITS + 1)]
+    rows.append({"ts": old, "path": "/ancient.txt", "kind": "read"})
+
+    kept = tracker_mod._prune(rows, stamp=tracker_mod._read_stamp, cap=False)
+
+    assert len(kept) == tracker_mod.MAX_VISITS + 1, (
+        f"{len(kept)} of {tracker_mod.MAX_VISITS + 1} in-window read rows "
+        "survived — the count cap is still deleting reads"
+    )
+    assert not any(r["path"] == "/ancient.txt" for r in kept), (
+        "the out-of-window row survived, so the date rule is not running and "
+        "the count above proves nothing"
+    )
+
+
+def test_the_same_corpus_pruned_WITH_the_cap_loses_an_in_window_row():
+    """PROVE THE TEST RED ON THE PRE-ITEM BEHAVIOUR before believing it.
+
+    This is the control the item asks for, run as a test rather than
+    described in a commit message: the identical corpus, pruned the old way,
+    must lose a row that is inside the retention window.
+    """
+    import lib.analytics_tracker as tracker_mod
+
+    now = datetime.now()
+    rows = [{"ts": now.timestamp(), "path": f"/p{i}.txt", "kind": "read"}
+            for i in range(tracker_mod.MAX_VISITS + 1)]
+
+    capped = tracker_mod._prune(rows, stamp=tracker_mod._read_stamp, cap=True)
+    assert len(capped) == tracker_mod.MAX_VISITS, len(capped)
+    assert len(capped) < len(rows), (
+        "the old rule loses nothing on this corpus, so the test above would "
+        "have passed before the fix and means nothing"
+    )
+
+
+def test_visits_keep_the_count_cap():
+    """The other half. Item 21 changes reads, not visits — a fix that
+    removed the cap everywhere would pass every assertion above."""
+    import lib.analytics_tracker as tracker_mod
+
+    now = datetime.now().isoformat()
+    rows = [{"timestamp": now, "path": f"/p{i}"}
+            for i in range(tracker_mod.MAX_VISITS + 50)]
+    kept = tracker_mod._prune(rows, cap=True)
+    assert len(kept) == tracker_mod.MAX_VISITS
+
+
+def test_the_call_site_chooses_the_rule_per_table():
+    """SOURCE-PINNED BY AST, because the choice lives at the call.
+
+    A behavioural test cannot see a `cap=True` restored above it: `_prune`
+    would still accept the parameter and still honour it, and every test
+    that calls `_prune` directly would stay green while the writer capped
+    reads again.
+    """
+    import ast
+
+    src = (Path(__file__).resolve().parent.parent
+           / "lib" / "analytics_tracker.py").read_text()
+    tree = ast.parse(src)
+
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call)
+             and getattr(n.func, "id", None) == "_prune"]
+    assert len(calls) == 2, (
+        f"expected exactly two _prune call sites, found {len(calls)} — "
+        "re-read this pin before trusting it"
+    )
+
+    by_cap = {}
+    for call in calls:
+        kwargs = {kw.arg: kw.value for kw in call.keywords}
+        cap = kwargs.get("cap")
+        assert cap is not None, (
+            "a _prune call site does not state its `cap` explicitly; the "
+            "choice per table must be visible at the call"
+        )
+        assert isinstance(cap, ast.Constant), ast.dump(cap)
+        stamp = kwargs.get("stamp")
+        table = "reads" if stamp is not None else "visits"
+        by_cap[table] = cap.value
+
+    assert by_cap == {"visits": True, "reads": False}, by_cap

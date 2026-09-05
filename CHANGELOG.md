@@ -30,6 +30,14 @@ package is unchanged — PyPI still carries 1.0.0.*
   It now appears as its own labelled row rather than being added to the
   served totals or dropped from the table.
 
+- **A large crawler sweep no longer erases its own record.** The table of
+  which AI crawler read which document was capped at twenty thousand rows, the
+  same cap as the visit table — but a single crawler can pull thousands of
+  documents in minutes, so a busy day silently deleted rows recording exactly
+  the event the table exists to record, and the deletion looked like the
+  crawler never having come. Read rows are now kept for the full retention
+  window and nothing else. Visit numbers are unchanged.
+
 - **A restriction published by the network hub is now honoured whatever its
   spelling.** If the hub restricted one of this site's pages using a different
   capitalisation than the site expected, the site did not recognise it and
