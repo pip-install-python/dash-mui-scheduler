@@ -55,6 +55,29 @@ jobs:
       - name: flake8
         run: flake8 lib components pages tests scripts run.py
 
+      # py_compile SWEEPS docs/ — the check flake8 cannot make here (1.6.44
+      # item 7). `.flake8` excludes `docs/*/`, so `flake8 docs/` is not
+      # passing those files, it is NOT READING THEM. Measured on this tree:
+      # a file containing `def broken(:` under docs/quickstart/ leaves
+      # `flake8 docs/` at exit 0 with ZERO lines of output, while py_compile
+      # exits 1 and names the line. That matters more here than in most
+      # repos: `.. exec::docs.<page>.<page>` IMPORTS these modules at page
+      # load, so a syntax error in any one of them breaks the whole site.
+      #
+      # FAILS ON AN EMPTY CORPUS on purpose. A sweep that found nothing and a
+      # sweep that swept nothing produce the same green.
+      - name: py_compile sweep of docs/
+        run: |
+          count="$(find docs -name '*.py' -not -path '*/__pycache__/*' | wc -l)"
+          echo "docs/ python files: $count"
+          if [ "$count" -lt 1 ]; then
+            echo "::error::the docs sweep found NO python files — a sweep that swept nothing is not a pass"
+            exit 1
+          fi
+          find docs -name '*.py' -not -path '*/__pycache__/*' -print0 \
+            | xargs -0 python -m py_compile
+          echo "py_compile: $count file(s) compiled"
+
       # The workflows lint themselves. An invalid workflow file is the one
       # defect CI structurally cannot report — the run dies before a job
       # exists to fail. A double quote inside ${{ }} silently killed every CI
