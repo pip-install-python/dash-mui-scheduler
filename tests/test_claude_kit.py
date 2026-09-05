@@ -725,3 +725,74 @@ def test_trap_3a_carries_its_substance_whatever_the_matcher_says():
         "the trap no longer names the script, so a seat will re-derive the "
         "method live — which is what item 17 exists to stop"
     )
+
+
+# ------------------------ 1.6.44 item 23(b): the launch name that survives --
+
+_SESSION_NAME = REPO / ".claude" / "session-name"
+
+
+def test_the_session_name_is_this_host_and_a_single_token(app_module):
+    """`cat .claude/session-name` equals this host's healthz `app` field.
+
+    The content IS the fork's own app key, which is why no fan-out can
+    byte-copy this file: a copied one would start every session in the fleet
+    under the template's address.
+    """
+    from lib.health import health_payload
+
+    raw = _SESSION_NAME.read_text()
+    name = raw.strip()
+    assert name, "the session name is empty"
+    assert name == raw.strip("\n").strip(), "untrimmed whitespace"
+    assert len(name.split()) == 1, f"not a single token: {name!r}"
+    assert name == health_payload("flask")["app"], (
+        f"session-name is {name!r} but /healthz reports "
+        f"{health_payload('flask')['app']!r}"
+    )
+
+
+def test_the_session_name_survives_a_fresh_checkout(tmp_path):
+    """PROVEN FROM A CLONE, which is the only form of this test that works.
+
+    `.gitignore` allow-lists `.claude/*`, so without `!.claude/session-name`
+    the file is written, passes every assertion made from the WORKING
+    DIRECTORY, and is invisible to anyone who checks the repo out. Reading it
+    from `REPO` cannot tell the two states apart; reading it from a clone
+    can.
+    """
+    import subprocess
+
+    # The fast half first, so a failure says WHICH state the repo is in: a
+    # file that was never added, versus one added and then swallowed by the
+    # ignore rule. They fail the clone identically and are fixed differently.
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", ".claude/session-name"],
+        cwd=REPO, capture_output=True, text=True)
+    assert tracked.returncode == 0, (
+        "`.claude/session-name` is not tracked at all — `git add` it (and "
+        "check the `!.claude/session-name` allow-list is in .gitignore, "
+        "because `.claude/*` will otherwise refuse the add)"
+    )
+
+    clone = tmp_path / "clone"
+    result = subprocess.run(
+        ["git", "clone", "--quiet", "--no-hardlinks", "--depth", "1",
+         "file://" + str(REPO), str(clone)],
+        capture_output=True, text=True, timeout=300,
+    )
+    if result.returncode != 0:
+        pytest.skip(f"git clone unavailable here: {result.stderr[-200:]}")
+
+    cloned = clone / ".claude" / "session-name"
+    assert cloned.exists(), (
+        "`.claude/session-name` is missing from a fresh checkout — it is "
+        "caught by the `.claude/*` ignore and needs its own allow-list line"
+    )
+    assert cloned.read_text().strip() == _SESSION_NAME.read_text().strip()
+
+    # ...and the salt from item 16 must NOT be there, from the same clone.
+    assert not (clone / ".visitor_salt").exists(), (
+        "the visitor-key salt is in the repository: every visitor_key in "
+        "every clone is computable by anyone holding it"
+    )

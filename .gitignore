@@ -39,6 +39,15 @@ venv/
 !.claude/settings.json
 !.claude/skills/
 
+# ...and the launch name (1.6.44 item 23b). One trimmed token — this host's
+# app key — so `claude -n "$(cat .claude/session-name)"` starts a session
+# already named for the host it is working on. It needs its OWN allow-list
+# line: `.claude/*` above ignores it, and a file that is written, passes
+# every test run from the working directory, and is INVISIBLE in a fresh
+# checkout is the exact failure this line prevents. Proven from a clone in
+# tests/test_claude_kit.py, not from `git check-ignore` alone.
+!.claude/session-name
+
 # Handoff notes for work that belongs in ANOTHER repo — the kickoff docs
 # that start a session elsewhere. Local scratch by design: a task list for
 # 2plot.dev or the hub has no business in this checkout.
