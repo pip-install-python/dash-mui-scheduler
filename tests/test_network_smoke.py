@@ -372,3 +372,113 @@ def test_both_link_shapes_parse_to_the_same_relations(battery):
     ]
     assert relations(repeated) == relations(folded) == {"alternate",
                                                         "describedby"}
+
+
+# ------------- 1.6.44 item 19: a proxied robots.txt is not your robots.txt --
+
+
+def _posture_verdict(wired, served_body):
+    """Run only `ai_bot_posture`, with /robots.txt replaced by `served_body`."""
+    real = wired.fetch_raw
+
+    def fetch_raw(url, *args, **kwargs):
+        if url.endswith("/robots.txt"):
+            return (200, {"content-type": "text/plain"},
+                    served_body.encode("utf-8"))
+        return real(url, *args, **kwargs)
+
+    wired.fetch_raw = fetch_raw
+    try:
+        wired._RESULTS.clear()
+        wired.satellite_checks(BASE)
+        return {n: (v, d) for n, v, d in wired._RESULTS}["ai_bot_posture"]
+    finally:
+        wired.fetch_raw = real
+
+
+def test_the_app_can_generate_its_own_side(app_module):
+    """Non-vacuity first: with no generated side the row SKIPS, and a skip
+    that nobody notices is how this check reads green forever."""
+    from lib.robots_expected import expected_directives
+
+    generated = expected_directives()
+    assert len(generated) >= 2, (
+        f"the app generated {len(generated)} directive(s); every comparison "
+        "below would skip"
+    )
+    assert any(name == "user-agent" for name, _ in generated), generated
+
+
+def test_the_unmodified_file_passes(wired, capsys):
+    """The green row, so the two red ones below mean something."""
+    from lib.robots_expected import generated_text
+
+    verdict, detail = _posture_verdict(wired, generated_text())
+    assert verdict == wired.PASS, (verdict, detail)
+    capsys.readouterr()
+
+
+def test_an_injected_stanza_reads_red(wired, capsys):
+    """SHAPE ONE: the edge adds directives the app never wrote. Valid
+    syntax, no tell — a grep for `User-agent:` sails straight past it."""
+    from lib.robots_expected import generated_text
+
+    served = generated_text() + "\nUser-agent: GPTBot\nDisallow: /\n"
+    verdict, detail = _posture_verdict(wired, served)
+    assert verdict == wired.FAIL, (verdict, detail)
+    assert "directive(s) the app did not generate" in detail, detail
+    capsys.readouterr()
+
+
+def test_a_marker_with_nothing_under_it_reads_red(wired, capsys):
+    """SHAPE TWO, and it is the one a directive diff cannot see: an edge that
+    has CLAIMED the file and is currently passing it through unchanged.
+
+    Every directive matches. Only the marker says the file is no longer this
+    app's to promise anything about — and the day the edge starts writing
+    under it, nothing would have warned.
+    """
+    from lib.robots_expected import generated_text
+
+    served = ("# BEGIN Cloudflare Managed content\n"
+              "# END Cloudflare Managed content\n" + generated_text())
+    verdict, detail = _posture_verdict(wired, served)
+    assert verdict == wired.FAIL, (verdict, detail)
+    assert "edge marker" in detail, detail
+    assert "directive(s) the app did not generate" not in detail, (
+        "this shape must be caught by the MARKER scan, not by the directive "
+        "diff — otherwise the second shape is not actually being tested"
+    )
+    capsys.readouterr()
+
+
+def test_cd_installs_the_app_before_running_the_battery():
+    """Rider 5. Without it the row skips in CD forever and reads green.
+
+    A check that cannot run is not a check that passed, and this one imports
+    the app to generate its own side of the comparison.
+    """
+    import yaml
+
+    cd = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "cd.yml").read_text())
+    steps = cd["jobs"]["verify"]["steps"]
+    names = [s.get("name", "") for s in steps]
+    runs = " ".join(s.get("run", "") for s in steps)
+
+    assert "requirements.txt" in runs, (
+        "cd.yml's verify job installs nothing, so lib.robots_expected cannot "
+        "import and ai_bot_posture skips on every deploy"
+    )
+    # Matched on what the step RUNS, not on its name: the install step's own
+    # name contains the word "battery" and a name match found it first,
+    # which is this file's own small version of "verify the artifact the
+    # claim is about".
+    install = next(i for i, s in enumerate(steps)
+                   if "requirements.txt" in s.get("run", ""))
+    battery = next(i for i, s in enumerate(steps)
+                   if "network_smoke.py" in s.get("run", ""))
+    assert install < battery, (
+        f"the install (step {install}) runs after the battery (step "
+        f"{battery}); the battery still skips"
+    )
+    assert names  # the listing is used in the failure messages above

@@ -588,3 +588,26 @@ they win.
   normalised (`page_tiers.register`, `more_restrictive`); that one
   comparison was the gap. A satellite may loosen its own declaration
   and may never loosen the hub's.
+- A PROXIED robots.txt IS NOT YOUR robots.txt (1.6.44 item 19; the
+  2plot.dev proxy canary). An edge can inject, rewrite or replace
+  `/robots.txt` in perfectly valid syntax with no tell beyond a comment
+  marker, and a grep for `User-agent:` sails straight past it. To learn
+  what the APP declares you must GENERATE it in process through the
+  package's own `generate_robots_txt` with the app's registered
+  `RobotsConfig` — a reimplementation compares the edge against your
+  beliefs about the config, not against the app. To learn what the
+  WORLD is told, fetch it. WHEN THEY DIFFER, THE DIFFERENCE IS THE
+  FINDING; same family as "verify the artifact the claim is about".
+  TWO SHAPES, and only one of them is visible to a directive diff: an
+  INJECTED stanza adds directives the app never wrote, and a MARKER
+  WITH NOTHING UNDER IT adds none at all — an edge that has claimed the
+  file and happens to be passing it through today. Both are pinned in
+  `tests/test_network_smoke.py`, and the second is asserted to be
+  caught by the marker scan specifically, or it is not being tested.
+  AND THE ROW MUST BE ABLE TO RUN. `ai_bot_posture` SKIPS where the app
+  cannot be generated beside the script, which is right — a comparison
+  with one side is not a comparison — but a row that skips on every
+  deploy reads exactly like a row that passed. cd.yml's verify job
+  therefore installs the requirements before the battery, and a test
+  pins the ordering. A check that cannot run is not a check that
+  passed.

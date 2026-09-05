@@ -520,10 +520,20 @@ def test_the_1_6_43_trap_phrases_are_present_read_case_insensitively():
     missing = [p for p in SYNC_1_6_43_ITEM_3_PHRASES if p not in flat]
     assert missing == [], f"trap phrases absent from the kit: {missing}"
 
-    literal = [p for p in SYNC_1_6_43_ITEM_3_PHRASES if p in kit]
-    assert literal == [], (
-        "a phrase now matches the lowercase literal too, so this test no "
-        f"longer demonstrates why the read must be case-insensitive: {literal}"
+    # The mechanism, kept as evidence rather than as a sentence about the
+    # past: these phrases live in the kit in CAPITALS, so a case-sensitive
+    # grep for the lowercase form reports them missing.
+    #
+    # NOT "all four" any more, and the change is honest rather than
+    # convenient: item 19's trap quotes "verify the artifact the claim is
+    # about" in running lowercase prose, so that one phrase now matches
+    # either way. The demonstration needs at least one phrase that still
+    # only matches case-folded, and it names which ones do.
+    still_demonstrates = [p for p in SYNC_1_6_43_ITEM_3_PHRASES if p not in kit]
+    assert len(still_demonstrates) >= 2, (
+        "fewer than two trap phrases now depend on a case-insensitive read, "
+        "so this test barely demonstrates the mechanism any more: "
+        f"{still_demonstrates}"
     )
 
 
@@ -678,22 +688,17 @@ def test_the_fork_is_current_against_a_reachable_template():
 
     # Named individually so an exemption cannot quietly cover a third.
     #
-    # The first is item 19, which adds its own trap later in this same drop.
-    # (Item 18's landed and is no longer exempt — its trap now carries the
-    # incident provenance the template's opening sentence names, which is
-    # what took the overlap from 0.50 to above the threshold. That was worth
-    # doing on its merits: a trap that cites the incident it came from is a
-    # stronger entry, not merely a longer one.)
+    # Items 18 and 19 have both landed and neither is exempt any more. What
+    # remains is ONE entry, and it is a FALSE ABSENCE — the exact failure
+    # mode item 14's notes predict — kept as one rather than fixed by
+    # reshaping prose to please a tool.
     #
-    # The third is a FALSE ABSENCE — the exact failure mode item 14's notes
-    # predict — and it is kept as one rather than fixed by reshaping prose to
-    # please a tool. This fork's trap 3(a) opens with its OWN adapted
+    # This fork's trap 3(a) opens with its OWN adapted
     # sentence and then carries the template's full method beneath it; the
     # matcher compares only the FIRST SENTENCE, which here shares 43% of the
     # template's opening tokens. The substance is asserted separately below,
     # so the exemption is not a hole.
-    pending = {"a proxied robots.txt is not your robots.txt (1.6.44 item 19;",
-               "which branch render actually builds can be measured on a gre"}
+    pending = {"which branch render actually builds can be measured on a gre"}
     unexplained = [n for n in names
                    if not any(n.startswith(p[:40]) for p in pending)]
     assert unexplained == [], (
