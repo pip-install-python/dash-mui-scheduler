@@ -213,7 +213,24 @@ def test_footer_is_the_contract(app_module):
         assert href in text
     assert GITHUB_URL not in text, "the repo link is the top bar's; the footer links the profile"
     assert "/changelog" not in text, "the sidebar's single Changelog link is the one"
-    assert "/terms" not in text and "/privacy" not in text
+
+    # FLIPPED AT 1.6.44 item 15, and the old assertion was RIGHT until it did.
+    # This line read `"/terms" not in text and "/privacy" not in text`, which
+    # was the correct contract while those pages did not exist: a footer link
+    # to an unregistered path is a soft 404 advertised from every page, and
+    # Dash answers 200 for it so nothing else can see it. Item 15 registers
+    # both, so the contract inverts — and the guard that makes the inversion
+    # safe is tests/test_shell_links_resolve.py, which holds every internal
+    # shell link against dash.page_registry.
+    import dash
+
+    registered = {entry["path"] for entry in dash.page_registry.values()}
+    for path in ("/terms", "/privacy"):
+        assert path in text, f"the footer no longer links {path}"
+        assert path in registered, (
+            f"the footer links {path} and nothing registers it — a soft 404 "
+            "on every page of the site"
+        )
 
 
 # ------------------------------------------------------- changelog --

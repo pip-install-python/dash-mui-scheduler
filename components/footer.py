@@ -35,7 +35,23 @@ def create_footer():
         dmc.Container(
             dmc.Group(
                 [
-                    dmc.Text(f"© {datetime.now().year} {PUBLISHER}", size="sm", c="dimmed"),
+                    dmc.Group(
+                        [
+                            dmc.Text(f"© {datetime.now().year} {PUBLISHER}",
+                                     size="sm", c="dimmed"),
+                            # 1.6.44 item 15. These are REGISTERED pages, and
+                            # tests/test_shell_links_resolve.py is what keeps
+                            # that true — a footer link to an unregistered
+                            # path is a soft 404 advertised from every page,
+                            # and Dash answers 200 for it.
+                            dmc.Anchor("Terms", href="/terms", size="sm",
+                                       c="dimmed"),
+                            dmc.Anchor("Privacy", href="/privacy", size="sm",
+                                       c="dimmed"),
+                        ],
+                        gap="sm",
+                        wrap="nowrap",
+                    ),
                     dmc.Group(
                         [
                             _icon_link("radix-icons:github-logo", GITHUB_PROFILE_URL, "Pip Install Python on GitHub"),

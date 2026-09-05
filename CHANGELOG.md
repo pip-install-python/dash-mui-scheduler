@@ -30,6 +30,12 @@ package is unchanged — PyPI still carries 1.0.0.*
   It now appears as its own labelled row rather than being added to the
   served totals or dropped from the table.
 
+- **A Terms of Use page and a Privacy page**, linked from the footer of every
+  page and listed in the sidebar under Legal. The privacy page describes what
+  this site actually records — it is written from the code that does the
+  recording, and a test fails the build if the two ever disagree. Both pages
+  are served identically to people and to AI assistants: a site cannot have
+  two versions of its own privacy policy.
 - **This site no longer stores visitors' IP addresses, and no longer sends
   them to anyone.** Two changes, both about the same thing. The address a
   visitor arrives with is used to tell one reader from another and is then

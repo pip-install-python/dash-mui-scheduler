@@ -253,6 +253,10 @@ def probe_ua(engine: str, caller: str = "") -> str:
 CATEGORY_ORDER = [
     "Scheduler",
     "Radial Charts",
+    # Legal LAST (1.6.44 item 15). The drop says "between Components and
+    # Admin"; this tree has no Components category and Admin is built
+    # separately by the navbar, so last IS that position here.
+    "Legal",
 ]
 
 # Network-wide community links — identical on every host.
