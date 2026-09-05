@@ -31,6 +31,12 @@ package is unchanged — PyPI still carries 1.0.0.*
   served totals or dropped from the table.
 
 ### Fixed
+- **The operator traffic board shows which kind of crawler each vendor is.**
+  Every vendor's category — training crawler, search engine, traditional bot —
+  was blank on the board and in the daily summary this site reports, because
+  the documentation engine only started attaching it in a newer release than
+  this site pins. The category now comes from that engine's own registry when
+  it is not supplied, so it is right today rather than after the next upgrade.
 - **The "Other Apps" menu opens from the keyboard.** It responded only to a
   mouse hover, so the one place this site lists its sibling sites could not be
   reached by anyone navigating with a keyboard — focus it, press Enter,

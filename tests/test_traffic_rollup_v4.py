@@ -37,11 +37,17 @@ def _read(path="/llms.txt", *, tier="index", vendor_key="gptbot",
           vendor_class="training", verified="unverified", policy=None,
           nbytes=1000, minute=0, day=DAY):
     """A ledger row built THROUGH `AnalyticsTracker.record_read` from a
-    classify()-shaped event (1.6.41, leaflet's finding): the stored row
-    carries exactly the package's EVENT_FIELDS, so a key the package does
-    not emit — `vendor_class` on 2.8.0 — is dropped here the way production
-    drops it. A fixture written by hand asserted a shape production never
-    produced, and every host's rollup sent `class: null` unnoticed."""
+    classify()-shaped event (1.6.41, leaflet's finding): the stored row is
+    whatever production stores, never a hand-written shape — a fixture
+    written by hand asserted a shape production never produced, and every
+    host's rollup sent `class: null` unnoticed.
+
+    Since 1.6.44 item 8 that row is EVENT_FIELDS + `kind` + `vendor_class`,
+    the last one PREFERRED from the event and DERIVED from the package's own
+    vendor registry when the event lacks it (it does below dimll 2.9.2, which
+    includes this repo's floor). Going through record_read is still the
+    point: if the derivation is ever removed, these fixtures go back to null
+    and the assertions notice."""
     import tempfile
     from pathlib import Path as _P
 
@@ -64,7 +70,23 @@ def _read(path="/llms.txt", *, tier="index", vendor_key="gptbot",
 # the stored row, and the row carries only EVENT_FIELDS. On 2.8.0 that is
 # None for every vendor (dimll 2.9.2 adds the field); the pin follows the
 # seam instead of asserting a value production cannot produce.
-CLASS_ON_THIS_PACKAGE = "training" if "vendor_class" in EVENT_FIELDS else None
+# The class a gptbot read row carries after 1.6.44 item 8. It used to be
+# `"training" if "vendor_class" in EVENT_FIELDS else None` — i.e. null on this
+# repo's 2.8.0 floor, because the key only reaches the EVENT at 2.9.2 and
+# `record_read` built its row from EVENT_FIELDS alone. That was a faithful pin
+# of a real defect: every vendor on the board read `class: null`.
+#
+# item 8 makes the tracker PREFER the package's class and DERIVE from the
+# package's own registry where the event lacks one, so the answer no longer
+# depends on the wheel. Derived from the registry here rather than typed, so
+# this constant cannot drift from what the code will actually produce.
+def _registry_class(key="gptbot"):
+    from dash_improve_my_llms import vendors
+
+    return getattr(vendors.get_vendor(key), "cls", None)
+
+
+CLASS_ON_THIS_PACKAGE = _registry_class()
 
 
 def _visit(path, *, minute=0, ip="1.1.1.1", ua="Mozilla/5.0 Chrome",
@@ -177,10 +199,20 @@ def test_the_reporter_payload_carries_v4_on_a_read_day(tmp_path, monkeypatch):
 
 
 def test_the_fixture_rows_are_what_record_read_stores():
-    """The seam itself (1.6.41): a row is EVENT_FIELDS + kind, nothing else —
-    client_ip dropped by default, and any key the package does not emit
-    (vendor_class on 2.8.0) absent, not None-by-hand."""
+    """The seam itself (1.6.41, WIDENED by 1.6.44 item 8).
+
+    A row is EVENT_FIELDS + `kind` + `vendor_class`, and nothing else —
+    client_ip dropped by default. `vendor_class` is the one key this app adds
+    on purpose, because the package does not emit it below 2.9.2 and the
+    board's per-vendor class was null without it. Every OTHER key still comes
+    from the package: the point of the seam is that this app does not invent
+    fields, and adding one deliberately is only defensible while the list of
+    deliberate additions is exactly one and is named here.
+    """
     row = _read()
     assert row["kind"] == "read" and "client_ip" not in row
-    assert set(row) - {"kind"} <= set(EVENT_FIELDS)
-    assert ("vendor_class" in row) == ("vendor_class" in EVENT_FIELDS)
+    assert set(row) - {"kind", "vendor_class"} <= set(EVENT_FIELDS)
+    assert row["vendor_class"] == _registry_class(), (
+        "the read row lost its derived vendor class — the board goes back to "
+        "class: null for every vendor"
+    )

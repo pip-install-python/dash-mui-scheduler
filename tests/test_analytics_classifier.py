@@ -112,3 +112,109 @@ def test_the_module_carries_no_user_agent_list():
                  if t in code]
     assert survivors == [], f"a hand-written UA list is back: {survivors}"
     assert "from dash_improve_my_llms import classify" in src
+
+
+# ------------------------- 1.6.44 item 8: prefer, then derive, never invent --
+
+
+def test_a_package_supplied_class_passes_through_untouched():
+    """PREFER, tested with a CONFLICTING fixture — or it cannot fail.
+
+    A fixture whose package class already agrees with what a local
+    derivation would produce passes whether the code prefers or derives.
+    This one says `search` for a vendor the registry calls something else,
+    so only a real pass-through survives it.
+    """
+    from dash_improve_my_llms import vendors
+
+    from lib.analytics_tracker import _vendor_class_for
+
+    registry_says = getattr(vendors.get_vendor("gptbot"), "cls", None)
+    assert registry_says and registry_says != "search", (
+        "pick a different vendor: this fixture is only conflicting while the "
+        f"registry disagrees with 'search' (it says {registry_says!r})"
+    )
+
+    event = {"vendor_key": "gptbot", "vendor_class": "search"}
+    assert _vendor_class_for(event) == "search", (
+        "the package's own class was overruled by a local derivation — the "
+        "host is now a second source of truth"
+    )
+
+
+def test_the_class_is_derived_only_where_the_event_lacks_it():
+    """DERIVE, and from the package's registry rather than a local map."""
+    from dash_improve_my_llms import vendors
+
+    from lib.analytics_tracker import _vendor_class_for
+
+    expected = getattr(vendors.get_vendor("gptbot"), "cls", None)
+    assert expected, "the registry knows no class for gptbot; pick another"
+    assert _vendor_class_for({"vendor_key": "gptbot"}) == expected
+    assert _vendor_class_for({"vendor_key": "gptbot",
+                              "vendor_class": None}) == expected
+
+
+def test_an_unknown_or_absent_vendor_gets_no_invented_class():
+    from lib.analytics_tracker import _vendor_class_for
+
+    assert _vendor_class_for({"vendor_key": None}) is None
+    assert _vendor_class_for({}) is None
+    assert _vendor_class_for({"vendor_key": "not-a-real-vendor"}) is None
+    assert _vendor_class_for(None) is None
+
+
+def test_the_read_row_carries_a_class_on_this_repos_floor():
+    """The defect this fixes, stated as a measurement.
+
+    `vendor_class` reaches the read EVENT at dimll 2.9.2. This repo's floor
+    is 2.8.0, where EVENT_FIELDS has no such key — so `record_read`'s
+    `{k: event.get(k) for k in EVENT_FIELDS}` dropped it at the app boundary
+    and every rollup's per-vendor class was null.
+    """
+    import dash_improve_my_llms as pkg
+    from dash_improve_my_llms._ledger import EVENT_FIELDS
+
+    from lib.analytics_tracker import tracker
+
+    resolved = tuple(int(n) for n in pkg.__version__.split(".")[:3]
+                     if n.isdigit())
+    if resolved < (2, 9, 2):
+        assert "vendor_class" not in EVENT_FIELDS, (
+            f"dimll {pkg.__version__} unexpectedly carries vendor_class on "
+            "the event; the derivation below is no longer the load-bearing "
+            "half"
+        )
+
+    event = {k: None for k in EVENT_FIELDS}
+    event.update(ts=0, path="/llms.txt", ua="GPTBot/1.0", vendor_key="gptbot",
+                 kind="read")
+
+    with tracker._buffer_lock:
+        tracker._reads_buffer.clear()
+    tracker.record_read(event)
+    with tracker._buffer_lock:
+        written = list(tracker._reads_buffer)
+        tracker._reads_buffer.clear()
+
+    assert len(written) == 1, written
+    assert written[0]["vendor_class"], (
+        "the read row reached the ledger with no class — this is the null "
+        "the board has been showing for every vendor"
+    )
+
+
+def test_the_rollup_reads_the_key_this_writes():
+    """The two ends are held together, not assumed to match.
+
+    `lib/traffic_rollup` groups on `vendor_class`; a fix that wrote any
+    other spelling would be green here and null on the board.
+    """
+    from pathlib import Path
+
+    rollup = (Path(__file__).resolve().parent.parent
+              / "lib" / "traffic_rollup.py").read_text()
+    assert 'r.get("vendor_class")' in rollup, (
+        "the rollup no longer reads `vendor_class` — the tracker is writing "
+        "a key nothing consumes"
+    )

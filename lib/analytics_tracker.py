@@ -425,6 +425,7 @@ class AnalyticsTracker:
             return
 
         row = {k: event.get(k) for k in EVENT_FIELDS}
+        row["vendor_class"] = _vendor_class_for(event)
         if not KEEP_CLIENT_IP:
             row.pop("client_ip", None)
         row["kind"] = "read"
@@ -550,6 +551,54 @@ def _prune(rows, stamp=_visit_stamp):
     if MAX_VISITS > 0 and len(rows) > MAX_VISITS:
         rows = rows[-MAX_VISITS:]
     return rows
+
+
+def _vendor_class_for(event) -> str | None:
+    """PREFER the package's `vendor_class`; DERIVE only where it is absent.
+
+    1.6.44 item 8, and on this fork it is not forward-planning — it is a live
+    defect. `vendor_class` arrives on the read event at dash-improve-my-llms
+    2.9.2; this repo's floor is 2.8.0, where `_ledger.EVENT_FIELDS` has 15
+    keys and no class. `record_read` builds its row as
+    `{k: event.get(k) for k in EVENT_FIELDS}`, so the key was dropped at the
+    app boundary on every read and `lib/traffic_rollup`'s per-vendor `class`
+    has been null for every vendor since the read table existed. Measured
+    here: EVENT_FIELDS is 15 keys, `vendor_class` not among them.
+
+    BOTH DIRECTIONS MATTER, which is why this is one function and not an
+    `or`:
+
+    * PREFER — where the package supplies a class, that value passes through
+      UNTOUCHED, even when a local derivation would disagree. The package
+      owns the registry; a host that "corrects" it is a second source of
+      truth, and the fleet has one.
+    * DERIVE — only where the key is absent, and only from the package's own
+      registry (`vendors.get_vendor(key).cls`). Never a local map: a hand-kept
+      table of vendor classes is exactly the mistake this repo's own history
+      records one layer down, where a local User-Agent list filed Anthropic's
+      training crawler as `search` for a year.
+
+    Returns None when there is no vendor to classify, which is the honest
+    answer for a UA-less or unrecognised client — never a guess.
+    """
+    if not isinstance(event, dict):
+        return None
+
+    # The package said so. Take it, and take it even if we would disagree:
+    # a mirror that sometimes overrules the thing it mirrors is not a mirror.
+    if "vendor_class" in event and event.get("vendor_class") is not None:
+        return event.get("vendor_class")
+
+    key = event.get("vendor_key")
+    if not key:
+        return None
+    try:
+        from dash_improve_my_llms import vendors
+
+        vendor = vendors.get_vendor(key)
+    except Exception:
+        return None
+    return getattr(vendor, "cls", None) if vendor is not None else None
 
 
 def _classify(user_agent, client_ip=None):
