@@ -53,18 +53,22 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # the crawler-shaped probes register as crawler interest. The Googlebot and
 # Chrome tokens are still there, so the target exercises exactly the path
 # being tested — it just knows the caller is machinery.
+# The PROBE spelling (1.6.44 item 4) — see scripts/network_smoke.py.
 try:
-    from lib.constants import INTERNAL_UA as _INTERNAL_UA
+    from lib.constants import probe_ua as _probe_ua
 except Exception:  # pragma: no cover — running outside a repo checkout
-    _INTERNAL_UA = "2plot-internal/1.0 (+https://2plot.ai/docs/satellite-analytics)"
+    def _probe_ua(engine, caller=""):
+        ua = f"{engine} 2plot-internal/probe"
+        return f"{ua} {caller}" if caller else ua
 
-CRAWLER_UA = (
-    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html) "
-    + _INTERNAL_UA
+CRAWLER_UA = _probe_ua(
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "smoke-live",
 )
-BROWSER_UA = (
+BROWSER_UA = _probe_ua(
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 " + _INTERNAL_UA
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "smoke-live",
 )
 # `/<page>/llms.txt` negotiates on Accept, not on the User-Agent.
 BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"

@@ -45,10 +45,17 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 TIMEOUT = 30
+# The PROBE spelling (1.6.44 item 4), not `internal_ua()`: this script is
+# machinery fetching a host to check it, and a far-side log reader should be
+# able to tell that from this app calling a peer server-to-server. The
+# fallback keeps working outside a repo checkout — this file is copied to CI
+# runners — and keeps the token intact, which is the half the contract needs.
 try:
-    from lib.constants import INTERNAL_UA as _INTERNAL_UA
+    from lib.constants import probe_ua as _probe_ua
 except Exception:  # running outside a repo checkout — keep the token intact
-    _INTERNAL_UA = "2plot-internal/1.0 (+https://2plot.ai/docs/satellite-analytics)"
+    def _probe_ua(engine, caller=""):
+        ua = f"{engine} 2plot-internal/probe"
+        return f"{ua} {caller}" if caller else ua
 # The default UA names the BROWSER lane first (1.6.40; this repo's finding on
 # its item-12 port, upstreamed): at dash-improve-my-llms >= 2.8 a UA with no
 # browser engine token is classified crawler-lane, so a bare internal token
@@ -59,13 +66,14 @@ except Exception:  # running outside a repo checkout — keep the token intact
 # engine token: INTERNAL_UA_TOKEN is a substring match, so the far side's
 # internal-traffic exclusion still holds. CRAWLER_UA is the other lane and is
 # deliberately untouched.
-BROWSER_UA = (
+BROWSER_UA = _probe_ua(
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 "
-    + _INTERNAL_UA + " network-smoke"
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "network-smoke",
 )
 UA = BROWSER_UA
-CRAWLER_UA = "Mozilla/5.0 (compatible; Googlebot/2.1) " + _INTERNAL_UA
+CRAWLER_UA = _probe_ua("Mozilla/5.0 (compatible; Googlebot/2.1)",
+                       "network-smoke")
 
 # The body dash-improve-my-llms serves when a page has no prose registered.
 # Matched in full, deliberately: this app's own <noscript> block legitimately

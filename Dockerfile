@@ -72,8 +72,14 @@ EXPOSE 8598
 # run one probe would cost more than the probe. ${PORT:-8598} matches the
 # CMD below exactly — a bare ${PORT} collapses the probe the moment the
 # variable is set empty.
+# The probe carries the fleet probe UA (1.6.44 item 4). urllib's default is
+# `Python-urllib/3.x`, which the classifier reads as a UA-less library client
+# — and this fires every 30s for the life of the container, against an app
+# whose tracker is live. `2plot-internal` in the string is what makes the
+# tracker drop the row at write time; `curl/8` leads it because a UA with no
+# engine token classifies crawler-lane.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8598')+'/healthz',timeout=4).read()" || exit 1
+    CMD python -c "import os,urllib.request;urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:'+os.environ.get('PORT','8598')+'/healthz',headers={'User-Agent':'curl/8 2plot-internal/probe docker-healthcheck'}),timeout=4).read()" || exit 1
 
 # The websocket-callback transport is disabled app-side (run.py turns off the
 # FastAPI backend's websocket capability — no WS route is registered). Keep

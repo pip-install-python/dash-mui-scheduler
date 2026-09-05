@@ -314,3 +314,143 @@ def test_the_read_table_drops_internal_traffic_but_keeps_real_crawlers(
         "everything passes a one-directional pin and measures nothing"
     )
     assert after_real[0]["ua"] == real and after_real[0]["kind"] == "read"
+
+
+# ------------------------------------- 1.6.44 item 4: the probe convention --
+#
+# The outbound half of the contract already existed here for the SCRIPTS —
+# all three carried INTERNAL_UA after their engine token from 1.6.40, with the
+# lane reasoning written out. What was missing was the `/probe` spelling that
+# tells a far-side log reader "a host checking itself" from "a host using
+# another host", and THE WORKFLOWS AND THE CONTAINER PROBE, which sent no
+# User-Agent at all.
+
+
+def _probe_carrying_files():
+    """Every file in this repo that fetches a host, with its text."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    found = {}
+    for rel in (
+        ".github/workflows/ci.yml",
+        ".github/workflows/cd.yml",
+        "Dockerfile",
+        "scripts/network_smoke.py",
+        "scripts/smoke_live.py",
+    ):
+        path = root / rel
+        if path.exists():
+            found[rel] = path.read_text()
+    return found
+
+
+def test_every_file_that_fetches_a_host_carries_the_probe_ua():
+    """Item 4's detect, over workflows AND the Dockerfile — not only scripts/.
+
+    NON-VACUOUS BY CONSTRUCTION (note 88): the sweep asserts it found the
+    files AND that each one really fetches a host, so a renamed workflow
+    cannot turn this green by sweeping nothing. The count is printed in the
+    failure message rather than left to be inferred.
+    """
+    from lib.constants import PROBE_UA_SUFFIX
+
+    files = _probe_carrying_files()
+    assert len(files) >= 5, (
+        f"swept only {len(files)} files — a sweep that found nothing and a "
+        "sweep that swept nothing produce the same green"
+    )
+
+    fetchers = {rel: text for rel, text in files.items()
+                if "curl " in text or "urlopen" in text or "urlretrieve" in text}
+    assert len(fetchers) >= 5, (
+        f"only {len(fetchers)} of {len(files)} swept files actually fetch a "
+        "host; the assertion below would be vacuous on the rest"
+    )
+
+    missing = sorted(rel for rel, text in fetchers.items()
+                     if PROBE_UA_SUFFIX not in text)
+    assert missing == [], (
+        f"{missing} fetch a host without the fleet probe UA — a request with "
+        "no User-Agent reads as a UA-less client to the far side's classifier"
+    )
+
+
+def test_the_actionlint_download_is_not_a_host_probe():
+    """The one curl deliberately left alone, named so nobody 'fixes' it.
+
+    ci.yml fetches actionlint's installer from raw.githubusercontent.com.
+    That is not a 2plot host, does not reach this app's tracker, and a
+    2plot-internal token on a request to GitHub tells GitHub nothing and this
+    network nothing.
+    """
+    files = _probe_carrying_files()
+    ci = files[".github/workflows/ci.yml"]
+    line = [ln for ln in ci.splitlines() if "download-actionlint" in ln]
+    assert line, "the actionlint download moved; re-check this exemption"
+    assert "2plot-internal" not in line[0]
+
+
+def test_probe_ua_refuses_an_engineless_probe():
+    """Not tidiness: a UA carrying only the suffix classifies crawler-lane,
+    so it would swap the document under a browser-lane assertion."""
+    import pytest as _pytest
+
+    from lib.constants import probe_ua
+
+    with _pytest.raises(ValueError):
+        probe_ua("")
+    with _pytest.raises(ValueError):
+        probe_ua("   ")
+
+
+def test_the_suffix_moves_neither_lane_nor_vendor_nor_class():
+    """RE-MEASURED against the installed package, never trusted from a comment.
+
+    A floor bump is exactly what would move this table, which is why the
+    claim in lib/constants.py is pinned here rather than asserted there. The
+    suppression layer is the tracker's write-time drop; lane/vendor/class
+    holding is what makes a probe measure the same document a real client
+    would get.
+    """
+    from dash_improve_my_llms import classify
+
+    from lib.constants import PROBE_UA_SUFFIX, probe_ua
+
+    def reading(ua):
+        c = classify(ua)
+        get = (c.get if isinstance(c, dict) else lambda k: getattr(c, k, None))
+        return (get("lane"), get("bot_type"), get("vendor_key"))
+
+    engines = [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "curl/8.7.1",
+    ]
+    for engine in engines:
+        bare = reading(engine)
+        assert reading(f"{engine} {PROBE_UA_SUFFIX}") == bare, engine
+        assert reading(probe_ua(engine, "network-smoke")) == bare, engine
+
+    # And the reading that justifies the guard above. If this ever stops
+    # being crawler-lane, the guard's reason has changed and it should be
+    # re-argued rather than kept out of habit.
+    assert reading(PROBE_UA_SUFFIX)[0] == "crawler"
+
+
+def test_a_probe_ua_visit_is_still_dropped_at_write_time():
+    """The suffix carries INTERNAL_UA_TOKEN, so suppression is unchanged.
+
+    The whole convention rests on this: the UA is for the far side's LOG, and
+    the tracker is what keeps the row out of the ledger.
+    """
+    from lib.constants import probe_ua
+
+    before = len(_ledger_visits())
+    tracker.track_visit(PAGE, probe_ua("curl/8.7.1", "network-smoke"), "1.2.3.4")
+    tracker.flush()
+    assert len(_ledger_visits()) == before, (
+        "a probe UA reached the ledger — the write-time drop is the whole "
+        "suppression layer"
+    )
