@@ -266,3 +266,30 @@ they win.
   Here it was a row regex that counted a page's own hand-written
   tables as prop rows, and a wire probe that grepped for a prop name I
   had invented and duly reported the 0.
+- PRINT THE RESOLVED VERSION BESIDE THE RESULT, and say which tool
+  produced it (1.6.44 item 10). An acceptance is a claim about a tree
+  AT A VERSION: "suite green" is not a result, "467 passed, 2 skipped,
+  exit 0, dimll 2.8.0 imported from
+  .venv/lib/python3.12/site-packages/dash_improve_my_llms/__init__.py"
+  is. Resolve it by IMPORTING and printing `mod.__file__` — never by
+  reading requirements.txt, which states the INTENT rather than the
+  fact, and never by parsing source, which truncates (see the regex
+  and substring traps above). The gap this closes is real and was
+  measured on excalidraw 2026-09-01: `llms_version` 2.9.4 on the wire
+  while its suite ran 2.8.0, so CI and production disagreed about
+  whose behaviour was being accepted and every green tick certified
+  the older one. THIS HOST HAS THE SAME GAP TODAY and it is a `>=`
+  floor, not a pin: the venv here resolves 2.8.0 while production's
+  image resolved something with route-level HEAD (measured item 2 —
+  local 11/15 pairs, wire 15/15). Until the 1.6.45 pin lands, every
+  acceptance from this seat is a statement about 2.8.0 and must say so.
+- NAME THE TOOLS WHOSE LOCAL INVOCATION IS NOT CI'S, in the same
+  sentence as the result. `actionlint` without shellcheck on PATH
+  skips every `run:` block's shell analysis, so a local "actionlint
+  clean" is a weaker statement than the CI job's — and a local ABSENCE
+  of the binary is weaker still. Both are the case in this sandbox:
+  neither `actionlint` nor `shellcheck` is installed, so workflow
+  changes from this seat are reported as "ci.yml parses as YAML
+  (yaml.safe_load), actionlint NOT RUN — not installed here", never as
+  lint-clean. The general form: when the check you ran differs from
+  the check CI runs, say which one you ran.
