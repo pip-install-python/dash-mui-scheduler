@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 package is unchanged — PyPI still carries 1.0.0.*
 
 ### Added
+
 - **The health check now says which version of its documentation engine is
   running, and where this site's traffic record lives.** Two questions that
   could previously only be answered by asking the people who deployed it:
@@ -22,28 +23,6 @@ package is unchanged — PyPI still carries 1.0.0.*
   survives a deploy or on a disk that is wiped every time. Both are now
   readable from the outside, and the storage answer is measured rather than
   taken from the deployment's own description of itself.
-
-- **The operator traffic board now says when a crawler was refused, instead
-  of counting it as a read.** Pages this site deliberately keeps out of the
-  AI-readable corpus — the two owner-only pages — are refused when a crawler
-  asks for them, and that refusal is the only evidence the exclusion works.
-  It now appears as its own labelled row rather than being added to the
-  served totals or dropped from the table.
-
-- **A large crawler sweep no longer erases its own record.** The table of
-  which AI crawler read which document was capped at twenty thousand rows, the
-  same cap as the visit table — but a single crawler can pull thousands of
-  documents in minutes, so a busy day silently deleted rows recording exactly
-  the event the table exists to record, and the deletion looked like the
-  crawler never having come. Read rows are now kept for the full retention
-  window and nothing else. Visit numbers are unchanged.
-
-- **A restriction published by the network hub is now honoured whatever its
-  spelling.** If the hub restricted one of this site's pages using a different
-  capitalisation than the site expected, the site did not recognise it and
-  kept the page's machine-readable copy open. No page is restricted today, so
-  nothing was exposed; the check is now spelling-insensitive.
-
 - **A Terms of Use page and a Privacy page**, linked from the footer of every
   page and listed in the sidebar under Legal. The privacy page describes what
   this site actually records — it is written from the code that does the
@@ -62,6 +41,25 @@ package is unchanged — PyPI still carries 1.0.0.*
   change.
 
 ### Fixed
+
+- **The operator traffic board now says when a crawler was refused, instead
+  of counting it as a read.** Pages this site deliberately keeps out of the
+  AI-readable corpus — the two owner-only pages — are refused when a crawler
+  asks for them, and that refusal is the only evidence the exclusion works.
+  It now appears as its own labelled row rather than being added to the
+  served totals or dropped from the table.
+- **A large crawler sweep no longer erases its own record.** The table of
+  which AI crawler read which document was capped at twenty thousand rows, the
+  same cap as the visit table — but a single crawler can pull thousands of
+  documents in minutes, so a busy day silently deleted rows recording exactly
+  the event the table exists to record, and the deletion looked like the
+  crawler never having come. Read rows are now kept for the full retention
+  window and nothing else. Visit numbers are unchanged.
+- **A restriction published by the network hub is now honoured whatever its
+  spelling.** If the hub restricted one of this site's pages using a different
+  capitalisation than the site expected, the site did not recognise it and
+  kept the page's machine-readable copy open. No page is restricted today, so
+  nothing was exposed; the check is now spelling-insensitive.
 - **The operator traffic board shows which kind of crawler each vendor is.**
   Every vendor's category — training crawler, search engine, traditional bot —
   was blank on the board and in the daily summary this site reports, because
@@ -95,6 +93,7 @@ package is unchanged — PyPI still carries 1.0.0.*
   so the new version field existed everywhere except on the lane this site
   actually runs. It now keeps whatever the health check reports, including
   fields added later.
+
 
 ## [2026-09-01] — the read table drops internal traffic, and props a machine can read
 
