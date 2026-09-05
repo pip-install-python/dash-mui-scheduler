@@ -24,6 +24,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 CD = REPO / ".github" / "workflows" / "cd.yml"
+CI = REPO / ".github" / "workflows" / "ci.yml"
 RENDER = REPO / "render.yaml"
 
 
@@ -124,3 +125,81 @@ def test_the_posture_fence_declares_the_road():
     text = (REPO / "DIVERGENCES.md").read_text()
     fence = re.search(r"^```yaml posture[ \t]*\n(.*?)^```", text, re.M | re.S).group(1)
     assert re.search(r"^deploy:\s*release-branch\s*$", fence, re.M), fence
+
+
+# ----------------- 1.6.44 item 12: the double-run trap, pinned before it bites --
+
+
+def _triggers(path):
+    """A workflow's `on:` block, read the only way that works.
+
+    PyYAML resolves an UNQUOTED `on:` key to the BOOLEAN True (YAML 1.1
+    treats on/off/yes/no as booleans), so `workflow["on"]` raises KeyError on
+    every GitHub workflow file ever written. MEASURED on this tree:
+
+        yaml.safe_load(ci.yml) -> top keys ['name', True, 'permissions', ...]
+        d.get("on") -> None
+
+    A test that catches that KeyError and moves on asserts NOTHING, which is
+    the failure mode the item names. This raises instead: an unreadable `on:`
+    block is a finding, not a skip.
+    """
+    doc = yaml.safe_load(path.read_text())
+    for key in (True, "on", "On", "ON"):
+        if key in doc:
+            return doc[key] or {}
+    raise AssertionError(
+        f"{path.name} has no `on:` block under any spelling — top-level keys "
+        f"are {sorted(map(str, doc))}. This test cannot assert anything about "
+        "a workflow it cannot read."
+    )
+
+
+def test_the_boolean_on_key_trap_is_real_on_this_tree():
+    """Pinned as a measurement, so the helper above is never 'simplified'."""
+    doc = yaml.safe_load(CI.read_text())
+    assert True in doc, "PyYAML no longer folds `on:` to a boolean here"
+    assert doc.get("on") is None, (
+        "`on` is now a string key too — re-read _triggers before trusting it"
+    )
+
+
+def test_cd_calls_ci_rather_than_duplicating_it():
+    """The precondition for the item. Without it there is no double-run to
+    avoid and the assertion below would be vacuous."""
+    calls = [job for job in _cd()["jobs"].values()
+             if str(job.get("uses", "")).endswith(".github/workflows/ci.yml")]
+    assert len(calls) == 1, (
+        f"{len(calls)} jobs call ci.yml; this pin assumes exactly one"
+    )
+
+
+def test_ci_does_not_also_run_itself_on_push_to_main():
+    """Item 12. A CD lane that CALLS ci.yml must not also trigger it on push.
+
+    Both would run on the same commit, and this repo's concurrency group is
+    `ci-${{ github.ref }}` with cancel-in-progress — so the two runs would
+    cancel each other and which one survives is a race. This tree is already
+    correct and the item is a guard, not a fix: ci.yml's `on:` is
+    pull_request + workflow_dispatch + workflow_call, with a comment saying
+    exactly why there is no push. The comment is not the enforcement.
+    """
+    triggers = _triggers(CI)
+    assert "workflow_call" in triggers, (
+        "ci.yml is no longer callable — cd.yml's `uses:` would fail"
+    )
+    push = triggers.get("push")
+    assert push is None, (
+        "ci.yml now runs on push AND is called by cd.yml: the matrix runs "
+        f"twice on every commit to main and the two runs cancel each other "
+        f"(concurrency group ci-<ref>, cancel-in-progress). Got push: {push}"
+    )
+
+
+def test_cd_is_the_one_that_owns_main():
+    """The other half: something must run on push, or nothing gates main."""
+    push = _triggers(CD).get("push") or {}
+    assert "main" in (push.get("branches") or []), (
+        "cd.yml no longer triggers on push to main — with ci.yml's push "
+        "trigger deliberately absent, nothing would run on a merge at all"
+    )
