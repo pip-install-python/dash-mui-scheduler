@@ -110,6 +110,25 @@ def load_visits(path=None):
 
 
 def visitor_key(v):
+    """One visitor's session key: the STORED key first, the old shape second.
+
+    1.6.44 item 16 stopped storing `ip_address` and started storing
+    `visitor_key` — a keyed one-way hash of (address + User-Agent). This
+    function must PREFER that, and it must FALL BACK to the old
+    `ip_address|md5(ua)` composite, because rows written before the release
+    are still inside the retention window.
+
+    Without the fallback every historical row collapses to `?|<ua hash>` —
+    one "visitor" per User-Agent — so visitor and session counts would crater
+    across the deploy and the days either side would not be comparable. That
+    is a reporting defect that looks exactly like a traffic drop.
+
+    A row that has neither still keys on its User-Agent, which is what the
+    old code did for an address-less row and is no worse than before.
+    """
+    stored = v.get("visitor_key")
+    if stored:
+        return str(stored)
     ua = hashlib.md5((v.get("user_agent") or "?").encode()).hexdigest()[:8]
     return f"{v.get('ip_address') or '?'}|{ua}"
 

@@ -30,6 +30,17 @@ package is unchanged — PyPI still carries 1.0.0.*
   It now appears as its own labelled row rather than being added to the
   served totals or dropped from the table.
 
+- **This site no longer stores visitors' IP addresses, and no longer sends
+  them to anyone.** Two changes, both about the same thing. The address a
+  visitor arrives with is used to tell one reader from another and is then
+  discarded — what is kept is a scrambled, keyed fingerprint that cannot be
+  turned back into an address. And the third-party lookup service this site
+  used to ask "where is this address?" is gone entirely, not switched off:
+  location now comes only from what the site's own CDN already reports, which
+  is a country, and a city where the network operator has enabled it. Visitor
+  and session counts are unaffected, including for days recorded before the
+  change.
+
 ### Fixed
 - **The operator traffic board shows which kind of crawler each vendor is.**
   Every vendor's category — training crawler, search engine, traditional bot —

@@ -67,3 +67,11 @@ visitor_analytics.json.tmp
 flask_session/
 clerk_events.jsonl
 security_blocklist.json
+
+# The visitor-key salt (1.6.44 item 16). NEVER COMMITTABLE: `visitor_key` is
+# an HMAC of (client address + User-Agent) keyed on this file, so a committed
+# salt makes every visitor key in every clone of this repo computable by
+# anyone holding it — which undoes the item entirely. It is generated on
+# first use beside the ledger, and ANALYTICS_VISITOR_SALT overrides it.
+.visitor_salt
+**/.visitor_salt

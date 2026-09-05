@@ -143,6 +143,26 @@ def _ledger_block() -> dict:
     return block
 
 
+def _geo_headers_seen() -> list:
+    """Which visitor-location headers this process has actually received.
+
+    1.6.44 item 16's rider. Cloudflare's "Add visitor location headers"
+    managed transform is an owner CLICK per zone, so the only honest answer
+    to "is it on for this host?" is the set that has turned up — not a
+    setting this app can read, and not a claim it can make on its own.
+
+    On the ERROR branch too, deliberately: an old or broken package is
+    exactly when an operator needs to know whether the edge is sending
+    anything at all.
+    """
+    try:
+        from lib.analytics_tracker import geo_headers_seen
+
+        return geo_headers_seen()
+    except Exception:
+        return []
+
+
 def health_payload(backend: str, headers=None) -> dict:
     payload = {
         "ok": True,
@@ -224,9 +244,11 @@ def health_payload(backend: str, headers=None) -> dict:
                     geo.effective_policy().get("deny_countries") or []
                 ),
                 "resolved": _resolved_country(headers),
+                "headers_seen": _geo_headers_seen(),
             }
         except Exception:  # never let a diagnostic break the health probe
-            payload["geo"] = {"configured": False, "denied": 0, "error": True}
+            payload["geo"] = {"configured": False, "denied": 0, "error": True,
+                              "headers_seen": _geo_headers_seen()}
 
     return payload
 
