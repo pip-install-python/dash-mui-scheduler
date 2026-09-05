@@ -550,3 +550,105 @@ def test_run_py_pins_the_funnel_public(app_module):
     the regression net for those pins."""
     for path in ("/", "/quickstart", "/llms-small.txt", "/llms-full.txt"):
         assert page_tiers.local_tier(path) == "public", path
+
+
+# ---- 1.6.44 item 18: a verify verdict is evidence, never sole authorisation --
+
+
+def _verify_source():
+    from pathlib import Path
+
+    return (Path(__file__).resolve().parent.parent
+            / "lib" / "hub_client.py").read_text()
+
+
+def test_every_early_return_in_verify_is_closed():
+    """SOURCE-pinned, not merely exercised.
+
+    A behavioural suite cannot see a restored default that pre-empts its own
+    guard: if someone changes `return "gated"` to `return "allow"` on the
+    no-secret path, a test that only calls verify() with a secret configured
+    stays green. So this reads the function.
+    """
+    import ast
+
+    tree = ast.parse(_verify_source())
+    func = next((n for n in ast.walk(tree)
+                 if isinstance(n, ast.FunctionDef) and n.name == "verify"),
+                None)
+    assert func is not None, "hub_client.verify is gone or renamed"
+
+    literals = [n.value.value for n in ast.walk(func)
+                if isinstance(n, ast.Return)
+                and isinstance(n.value, ast.Constant)
+                and isinstance(n.value.value, str)]
+    assert literals, "verify has no literal returns — re-read this pin"
+    assert set(literals) == {"gated"}, (
+        f"verify has a literal return that is not 'gated': {sorted(set(literals))}. "
+        "Every failure path must fail CLOSED."
+    )
+
+
+def test_verify_fails_closed_without_the_host_held_secret(monkeypatch):
+    """The behavioural half, beside the source pin — both, not either."""
+    from lib import hub_client
+
+    monkeypatch.delenv("CROSS_APP_WEBHOOK_SECRET", raising=False)
+    hub_client.clear_cache()
+    assert hub_client.enabled() is False
+    assert hub_client.verify("any-key", "/quickstart", "auth") == "gated"
+
+
+def test_the_route_that_consults_verify_names_the_secret():
+    """Item 18's acceptance. `lib/access.check` consults the verdict FOR
+    ACCESS, so the secret that authenticates the transport must be named at
+    the call site — or the route must be documented as metering-only. This
+    one is not metering-only, so it names it."""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parent.parent / "lib" / "access.py").read_text()
+    call = src.split("hub_client.verify(", 1)[0][-1800:]
+    assert "CROSS_APP_WEBHOOK_SECRET" in call, (
+        "the route consults a hub verdict for access without naming the "
+        "host-held secret that authenticates the transport"
+    )
+
+
+def test_a_hub_ceiling_in_the_wrong_case_still_restricts(monkeypatch):
+    """Lookalikes, not one literal — and this was a LIVE bypass here.
+
+    `check()` tested the RAW hub value against three lowercase literals, so a
+    ceiling published as "Auth"/"ADMIN"/" hidden " matched none of them and
+    the machine lane opened on a page the NETWORK had restricted. A satellite
+    may never loosen what the hub restricted.
+    """
+    from lib import access, hub_client, page_tiers
+
+    page_tiers.register("/lookalike", "auth", llms_public=True)
+    monkeypatch.setattr(access.auth, "clerk_enabled", lambda: True)
+    monkeypatch.setattr(access.auth, "current_user", lambda: None)
+
+    for spelling in ("admin", "ADMIN", " Admin ", "Auth", "HIDDEN"):
+        monkeypatch.setattr(hub_client, "hub_tiers",
+                            lambda _s=spelling: {"/lookalike": _s})
+        assert access.check("/lookalike") != "allow", (
+            f"a hub ceiling of {spelling!r} did not restrict the machine lane"
+        )
+
+
+def test_the_good_row_still_passes_beside_the_bypass_rows(monkeypatch):
+    """Pin the GOOD rows too, or the test above passes on a route that denies
+    everything."""
+    from lib import access, hub_client, page_tiers
+
+    page_tiers.register("/lookalike-open", "auth", llms_public=True)
+    monkeypatch.setattr(access.auth, "clerk_enabled", lambda: True)
+    monkeypatch.setattr(access.auth, "current_user", lambda: None)
+
+    for absent in ({}, {"/lookalike-open": "public"}, {"/other": "admin"}):
+        monkeypatch.setattr(hub_client, "hub_tiers", lambda _a=absent: _a)
+        assert access.check("/lookalike-open") == "allow", (
+            f"the machine-lane window closed with hub tiers {absent!r} — the "
+            "restriction test above would pass on a route that denies "
+            "everything"
+        )

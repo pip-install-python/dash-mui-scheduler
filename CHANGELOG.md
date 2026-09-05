@@ -30,6 +30,12 @@ package is unchanged — PyPI still carries 1.0.0.*
   It now appears as its own labelled row rather than being added to the
   served totals or dropped from the table.
 
+- **A restriction published by the network hub is now honoured whatever its
+  spelling.** If the hub restricted one of this site's pages using a different
+  capitalisation than the site expected, the site did not recognise it and
+  kept the page's machine-readable copy open. No page is restricted today, so
+  nothing was exposed; the check is now spelling-insensitive.
+
 - **A Terms of Use page and a Privacy page**, linked from the footer of every
   page and listed in the sidebar under Legal. The privacy page describes what
   this site actually records — it is written from the code that does the

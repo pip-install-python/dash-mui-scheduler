@@ -119,7 +119,15 @@ def check(path: str) -> str:
     # this page above public, the machine lane must stay bound too — a
     # satellite's env default cannot loosen what the network restricted.
     if tier == "auth" and llms_public(path):
-        hub_tier = hub_client.hub_tiers().get(path)
+        # NORMALISE THE HUB'S VALUE BEFORE COMPARING IT (1.6.44 item 18).
+        # This read the RAW string and tested membership against three
+        # lowercase literals, so a ceiling published as "Auth", "ADMIN" or
+        # " hidden " matched none of them and this branch returned `allow` —
+        # opening the machine lane on a page the NETWORK restricted, which is
+        # the one direction a satellite must never loosen. Everywhere else
+        # already normalises (`page_tiers.register`, `more_restrictive`); this
+        # comparison was the gap. Reject lookalikes, not one literal.
+        hub_tier = (hub_client.hub_tiers().get(path) or "").strip().lower()
         if hub_tier not in ("auth", "admin", "hidden"):
             return "allow"
 
@@ -131,6 +139,22 @@ def check(path: str) -> str:
         return "allow"
 
     # No session: an agent, or an anonymous browser. Only a key can help now.
+    #
+    # A VERIFY VERDICT IS EVIDENCE, NOT AUTHORISATION ON ITS OWN (1.6.44
+    # item 18). This route DOES consult the verdict for access, so the item
+    # requires the host-held secret to be named beside it: the verdict is
+    # only ever reachable over a transport authenticated by
+    # `CROSS_APP_WEBHOOK_SECRET` (an HMAC-SHA256 signed POST — see
+    # lib/hub_client). Without that secret `hub_client.enabled()` is False
+    # and `verify` returns "gated" without asking anyone. So the trust chain
+    # is: a secret this host holds, then a verdict from the hub — never the
+    # verdict alone, and never a verdict an unauthenticated caller could
+    # have induced.
+    #
+    # Every failure path in `verify` returns "gated", and those defaults are
+    # SOURCE-pinned in tests/test_access.py rather than merely exercised: a
+    # behavioural suite cannot see a restored default that pre-empts its own
+    # guard.
     key = _request_key()
     if not key:
         return "gated"

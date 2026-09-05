@@ -557,3 +557,34 @@ they win.
   the check exists to find a trap that never arrived, never to police
   prose, and a strict check would train forks to paste over their own
   adaptations. MERGED, NEVER INSTALLED OVER, in both directions.
+- A VERIFY VERDICT IS METERING EVIDENCE, NEVER SOLE AUTHORISATION
+  (1.6.44 item 18; the security incident of 2026-09-02, hub 0.26.0 →
+  0.26.1, 2plot.dev `5ca793c`). The hub gated two admin-data routes on
+  its own `/api/agent-key/verify`, whose all-unknown-tier fallback
+  answered "allow" WITHOUT READING THE KEY. A verdict fetched from the
+  hub says what the hub believes about a key; it does not by itself say that the caller may
+  read the page. Any route that consults `hub_client.verify` FOR
+  ACCESS must NAME the host-held secret beside it — here
+  `CROSS_APP_WEBHOOK_SECRET`, which signs the POST the verdict travels
+  on, and without which `enabled()` is False and `verify` answers
+  "gated" without asking anyone. A route that does not name one is
+  metering-only and must say so in words. The trust chain is: a secret
+  this host holds, THEN a verdict — never a verdict alone, and never
+  one an unauthenticated caller could have induced.
+  SOURCE-PIN THE CLOSED FALLBACKS, do not merely exercise them. A
+  behavioural suite cannot see a restored default that pre-empts its
+  own guard: change one `return "gated"` to `return "allow"` on the
+  no-secret path and every test that configures a secret stays green.
+  `tests/test_access.py` parses `verify` and asserts every literal
+  return in it is `gated`; the mutation was run both ways.
+  AND PIN THE GOOD ROWS BESIDE THE BYPASS ROWS, or the restriction
+  tests pass on a route that denies everything.
+  REJECT CASE AND WHITESPACE LOOKALIKES OF A TIER, NOT ONE LITERAL —
+  and this was LIVE on this host, not hypothetical. `lib/access.check`
+  compared the hub's RAW ceiling against three lowercase literals, so a
+  ceiling published as "Auth", "ADMIN" or " hidden " matched none of
+  them and the machine lane opened on a page the NETWORK had
+  restricted. Every other comparison in the tier stack already
+  normalised (`page_tiers.register`, `more_restrictive`); that one
+  comparison was the gap. A satellite may loosen its own declaration
+  and may never loosen the hub's.
