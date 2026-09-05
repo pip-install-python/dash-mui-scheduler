@@ -67,8 +67,9 @@ def create_link(icon, href, label, visible_from=None):
 def create_other_apps_menu():
     """*Other Apps* — the network, from ONE registry (1.6.38).
 
-    A hover menu in the top bar (the 2plot.dev shape the owner named as the
-    reference), populated from lib.network_directory: PEERS + AFFILIATED,
+    A click-or-hover menu in the top bar (the 2plot.dev shape the owner named
+    as the reference — hover kept, keyboard added at 1.6.44 item 6a),
+    populated from lib.network_directory: PEERS + AFFILIATED,
     this app omitted, labelled by domain. The sidebar carries no network
     section any more — this is the only place the network is listed, so it
     cannot be listed twice.
@@ -108,7 +109,14 @@ def create_other_apps_menu():
                 }},
             ),
         ],
-        trigger="hover",
+        # click-hover, NOT hover (1.6.44 item 6a). The target is a real
+        # dmc.Button — the defect the item predicted (a div with
+        # aria-haspopup) is not what is here — but `trigger="hover"` made the
+        # only listing of the sibling network in this app POINTER-ONLY: focus
+        # it, press Enter, nothing happens. `click-hover` (a value dmc 2.8.0
+        # accepts, checked before shipping) keeps the hover behaviour and
+        # adds the click/Enter path.
+        trigger="click-hover",
         openDelay=100,
         closeDelay=200,
     )

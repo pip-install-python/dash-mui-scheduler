@@ -31,6 +31,22 @@ package is unchanged — PyPI still carries 1.0.0.*
   served totals or dropped from the table.
 
 ### Fixed
+- **The "Other Apps" menu opens from the keyboard.** It responded only to a
+  mouse hover, so the one place this site lists its sibling sites could not be
+  reached by anyone navigating with a keyboard — focus it, press Enter,
+  nothing happened. Hovering still works exactly as before.
+- **Links inside documentation text are underlined.** They were told apart
+  from the surrounding prose by colour alone, which is invisible to a reader
+  with low colour vision and to anyone reading in high-contrast mode. Links in
+  the navigation and footer are unchanged.
+- **Icon buttons are large enough to tap on a phone.** The header and footer
+  controls were 34 pixels square, below the 44-pixel minimum recommended for
+  touch. Desktop spacing is untouched.
+- **The stylesheet and scripts are now cached by the browser.** They were
+  served with no cache instruction at all, so every visitor re-fetched them on
+  every page load and the CDN in front of the site stored nothing. They now
+  last an hour, with a day of grace while a new copy is fetched in the
+  background. Pages themselves are deliberately not cached.
 - **Uptime monitors can check this site the way they normally do.** A
   lightweight "are you alive?" request — the default for most monitoring
   services, and the one this site's own deploy check uses — was answered with

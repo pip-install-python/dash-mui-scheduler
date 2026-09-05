@@ -597,6 +597,23 @@ if IS_FLASK:
         except Exception:
             pass
 
+    @app.server.after_request
+    def _asset_cache_lifetime(response):
+        """Give /assets/ a lifetime (1.6.44 item 6g). See lib/static_cache.
+
+        The FastAPI half is StaticCacheMiddleware; both call the same policy
+        function so the two lanes cannot serve different lifetimes for the
+        same file. Production here is FastAPI, so this lane is the one CI's
+        gunicorn boot exercises rather than the one that ships — which is
+        precisely why the policy is shared instead of written twice.
+        """
+        from lib.static_cache import cache_control_for
+
+        value = cache_control_for(_flask_request.path)
+        if value and response.status_code == 200:
+            response.headers["Cache-Control"] = value
+        return response
+
 # ============================================================================
 # Access control (dash-improve-my-llms 2.3). Reads the tiers the pages just
 # declared, so it must run after they are registered and before the routes

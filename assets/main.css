@@ -105,6 +105,40 @@ input:invalid {
     .demo-controls {
         width: 100%;
     }
+
+    /* 1.6.44 item 6c — touch targets reach 44x44 at phone width.
+       A Mantine ActionIcon size="lg" is 34px, and the header and footer are
+       made of them: the burger, the sidebar toggle, the colour-scheme
+       toggle, the three footer icons. The mobile drawer rows already
+       cleared 44px. Widened ONLY inside this media query, so desktop
+       density is untouched. */
+    .mantine-ActionIcon-root {
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+/* 1.6.44 item 6b — prose links do not rely on colour alone.
+   The global Anchor default is `underline: "hover"` (components/appshell.py),
+   which is right for chrome and is a WCAG 1.4.1 failure inside RUNNING TEXT:
+   a reader who cannot distinguish the link colour from the body colour has
+   nothing else to go on until they hover, and a touch reader never hovers.
+
+   THE SELECTOR IS `.m2d-link`, and it is not a guess. markdown2dash's
+   renderer builds every prose link as
+       dmc.Anchor(..., underline=False)   # src/renderer.py::link
+   decorated with @class_name, and create_class_name("link") returns
+   "m2d-link" — so that class marks exactly the links that come from a
+   document's prose, and nothing in the chrome. Scoped to #main-content (the
+   skip link's own target) as a second fence.
+
+   `!important` because the renderer hardcodes `underline=False` on the
+   component itself; this rule exists to overrule that specific decision for
+   body prose, and a specificity race against a library's own styles is the
+   kind of fix that works until the library renumbers its classes. */
+#main-content a.m2d-link {
+    text-decoration: underline !important;
+    text-underline-offset: 0.15em;
 }
 
 .dmc-bar {

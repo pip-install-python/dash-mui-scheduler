@@ -348,6 +348,40 @@ discriminating observation is the next push that goes RED on `main`:
     defect. `tests/test_head_method.py::test_no_head_shim_sits_above_the_router`
     keeps it out.
 
+11. **Item 6's sub-items (d), (e) and (f): recorded, not fixed** — which
+    item 6's own wording allows, and each for a different reason.
+
+    **(d) the mobile console error is NOT VERIFIED HERE, and that is not
+    the same as not reproduced.** The template measured its own: 16
+    console messages on load, all LOG, zero errors. This sandbox cannot
+    bind a socket and has no browser under its control, so no console
+    read was taken on this host at all. Recorded as OWED to the
+    post-push visual pass rather than borrowed from the template's
+    result — a fork that copies another host's measurement has not
+    measured anything.
+
+    **(e) CSS and JS are deliberately unminified.** The wire already
+    serves them gzip-encoded, `assets/` is a few tens of KB of text, and
+    the stylesheet a fork opens on day one should be the one a human
+    wrote. This matches the template's decision; it is recorded because
+    nothing in a diff distinguishes a deliberate non-minification from
+    an unfinished build step.
+
+    **(f) content images: there are none.** This repo's `docs/` contain
+    ZERO markdown images — measured, and the count is asserted in
+    `tests/test_a11y_block.py::test_this_repos_docs_contain_no_markdown_images`
+    so the not-applicable expires the moment a doc adds one. The
+    template ships `lib/directives/headings.py` with an `_intrinsic_size`
+    image renderer; this fork has no `headings.py` at all and needs
+    none. A sync must not read that absence as drift.
+
+    What IS ported from 6(f) is the pin on why its attributes cannot
+    ship: `loading="lazy"` and `decoding="async"` are not props of this
+    Dash's `html.Img` and Dash RAISES on an unknown one — measured here
+    on dash 4.2.0, `TypeError: The html.Img component (version 4.2.0)
+    received an unexpected keyword argument: loading`. The test pins the
+    REASON, so the day Dash learns them it goes red and says so.
+
 ```yaml posture
 ai_bots: {"/": 200, "/llms.txt": 200, "/healthz": 200}
 healthz: full
