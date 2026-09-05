@@ -192,9 +192,20 @@ they win.
   hit — the requirements line changing IS the cache bust, and floors
   live in several encodings (requirements, run.py's boot floor,
   tests, CI): grep the number, move every one.
-- `/healthz` build == HEAD is the deploy proof; a missing geo block
-  on dimll ≥2.7 means the cache trap fired (unless DIVERGENCES.md
-  says this host's healthz is deliberately minimal).
+- `/healthz` build == HEAD **of `release`** is the deploy proof on a
+  release-branch host — and this host is one; see the fuller trap
+  below and read that one before acting on this line. Written
+  unqualified here until 1.6.44 item 14, which is the same
+  contradiction clerkhook found on the template: two lines about the
+  same question a hundred lines apart, and a reader who met this one
+  first was sent to the wrong ref — `main` ahead of `release` then
+  reads as drift instead of what it is, an uncertified push pending.
+  A missing geo block on dimll ≥2.7 means the cache trap fired (unless
+  DIVERGENCES.md says this host's healthz is deliberately minimal).
+  The general form, since this file is long enough to contain its own
+  contradictions: when a trap is later corrected, AMEND THE ORIGINAL —
+  a correction that only appends leaves the wrong answer in the place
+  a reader looks first.
 - Probe with GET, not HEAD — HEAD responses omit the Link headers.
 - Run-watchers keyed on a commit sha can match Dependabot's runs on
   the same sha — key on the workflow path (cd.yml) instead.
@@ -320,3 +331,291 @@ they win.
   detects all read 1 on this tree flattened and case-folded, and all
   read 0 against the capitalised literal — the phrases are here, and a
   case-sensitive grep would report them missing.
+
+<!-- Merged from dash-documentation-boilerplate at 1.6.44 item 14. This
+     fork's section was 14 entries against the template's 28; every entry
+     below is a FLEET-class trap this repo never received, taken whole
+     rather than summarised, because a trap loses its teeth when its
+     measurement is dropped. Entries this fork had already ADAPTED were
+     amended in place, never pasted over — `scripts/kit_traps.py` matches
+     on token overlap for exactly that reason. Items 18 and 19 add their
+     own two traps with those items. -->
+- Always GET, never HEAD — and the mechanism, measured 2026-08-27
+  after two rounds of wrong diagnoses: on the ASGI backends HEAD is
+  answered by NOTHING AT ALL. Werkzeug derives a HEAD rule from
+  every GET rule; FastAPI's `APIRoute` does not, so a route declared
+  `@router.get(...)` returns 405, and every ASGI host in the network
+  was 405ing HEAD on every route — `/healthz`, `/robots.txt`,
+  `/sitemap.xml` included. Get the LAYER right (corrected 1.6.33,
+  after this text and two seats' drops all said "Starlette", and
+  three probes went looking in the wrong package):
+  `starlette.routing.Route` DOES add HEAD wherever GET is present —
+  `self.methods.add("HEAD")`, the same courtesy Werkzeug does — and
+  FastAPI's `APIRoute` is the one that takes `methods` literally.
+  A HEAD probe therefore tells you about
+  the router's method table and never about the document. GET is
+  never wrong, which is the whole reason to have one rule.
+  Do NOT "verify" the trap on one host and conclude HEAD is fine:
+  excalidraw measured twice and was right about its own Flask host
+  and wrong about the fleet. Do not verify it on `HEAD /` either —
+  a crawler-UA `HEAD /` is answered by the prerender middleware
+  before routing, so it returns 200 on a host that 405s everything
+  else, and that one case is how this repo's 1.6.31 in-process
+  probe cleared the app code. Earlier text here said the ASGI hosts
+  DROP the `Link` headers on HEAD: a 405 carries no `Link`, so the
+  observation was true and the diagnosis was not. Fixed in the
+  template at 1.6.32 (a HEAD→GET ASGI middleware, because the
+  package's own adapter declares its routes GET-only); the fleet's
+  two ASGI forks consume it as spec item 11, and the hub plus four
+  second-ring hosts had the same defect — if you serve a non-Flask
+  backend, assume you have it until you have probed a route that is
+  NOT `/`. The middleware stayed after dimll 2.7.2 fixed the
+  package's own routes, because `/` is Dash's page catch-all and every
+  Dash route is an `APIRoute` too — and it is RETIRED at 1.6.44, on the
+  pin to dimll 2.9.4, where the package walks the router itself and adds
+  HEAD wherever GET is allowed, Dash's lifespan-registered catch-all
+  included. Amended here rather than appended below, because the version
+  is the whole content of the claim and a reader who met "the middleware
+  stays" first would keep a shim that now MASKS the fix it was standing
+  in for: converting HEAD to GET above the router made every HEAD look
+  correct whatever the router did, so it would have hidden a regression
+  in the package's pass exactly as well as it hid the original defect.
+  Measured before removing (5 paths x 3 UAs, FastAPI lane, in-process):
+  15 of 15 HEAD/GET status pairs matched WITHOUT it, `/` to a browser UA
+  included — the one case the old text said would 405. The disable was
+  proved non-vacuous first by asserting the middleware stack contained
+  the class in one run and not the other. If your floor is below 2.9.4,
+  the shim is still load-bearing: this retirement is gated on the pin,
+  not on the date.
+- Any throwaway Python probe a session writes against a production
+  host needs the certifi SSL context AND a retry guard. Fixing the
+  shipped tools does not cover the next ad-hoc script: the template
+  seat hit `CERTIFICATE_VERIFY_FAILED` in a hand-written CD watcher
+  one hour after shipping that exact fix inside both live tools,
+  and the ops seat hit it plus an `IncompleteRead` on a chunked
+  response in the same session. It is a seat habit, not a repo
+  contract, which is what this file is for.
+- SUPERSESSION: cd.yml's build-match wait cannot tell "not deployed
+  yet" from "already replaced" — both look like a live build that
+  is not the sha it wants. A bot-merged PR (any GITHUB_TOKEN merge)
+  is one road in: it lands with ZERO workflow runs on the merge sha
+  (anti-recursion) yet still reaches production, because the deploy
+  hook builds branch HEAD — so an in-flight CD run ships the merge
+  while its own wait holds out for the superseded release sha
+  (observed live on 4a1d430, 2026-08-25). It is NOT the only road,
+  and taking the bot actor off main does not close the class: two
+  human pushes inside one deploy window, or hook dispatch lag,
+  produce exactly the same state. Since 1.6.25 the wait fails FAST
+  when the live build is a DESCENDANT of the wanted sha (compare
+  API) instead of going red at timeout — that is the diagnosis, and
+  it works whoever merged. The policy — actions PRs: human merge
+  when green, never a bot actor on main — removes the most common
+  road, not the trap.
+- Anonymous api.github.com is 60 requests/hour. With no `gh` and no
+  token, read a run ONCE after CI's own jobs report complete — a
+  blind 20 s poll loop spends the whole budget reading rate-limit
+  bodies as "not done yet" (modelviewer, 2026-08-26).
+- A GitHub API JSON body WITHOUT the field you asked for
+  (`workflow_runs` absent, not empty) is a rate-limit error body,
+  never an empty result — check the field exists before trusting
+  the answer.
+- `git fetch` before any audit: the fan-out pushes to these repos
+  now, and a checkout current yesterday is 2–3 merges behind
+  origin/main today (three pilot sessions, same day, 2026-08-26).
+- A failed STEP is not a failed RUN. A job with
+  `continue-on-error: true` (pip-audit here) reports its step red
+  and the RUN still concludes `success`; the reverse also bites —
+  a green-looking job list under a run whose conclusion is
+  `failure`. Read the run's `conclusion`, then the annotations;
+  never infer either one from the other.
+- Never round-trip JSON through zsh `echo` — it interprets the
+  `\n` inside a multi-line commit message and hands the parser
+  real control characters (a broken API read on the template, then
+  the same hour on the ops seat). Pipe curl straight into
+  `python3`, or use `printf '%s'`.
+- Repeated HTTP headers survive only if you keep them: both
+  `dict(resp.headers)` and `{k: v for k, v in resp.headers.items()}`
+  keep the LAST value per name, and dimll emits several `Link`
+  headers (muicharts, 2026-08-26). Iterate the items, or ask for
+  `resp.headers.get_all(name)`; in curl, `-D -` and read the raw
+  block.
+- Name the crawler UA when you probe the machine lane. Which
+  document a host serves is decided by the package's UA
+  classification, not by the absence of a UA: on the template
+  today, curl's default `curl/8.x` receives the SAME crawler
+  document as Googlebot (18,779 bytes, byte-identical) while a
+  Chrome UA gets the 148 KB app shell. One host (muicharts) reported
+  a UA-less probe classified the other way; treat that as
+  UNCONFIRMED — muischeduler filed the same observation and then
+  RETRACTED it (its report had the two documents swapped), leaving
+  one unreproduced sighting, and a trap carrying an unreproducible
+  fact spends somebody's afternoon. The advice does not depend on
+  it: either lane can be the one you did not mean to test, so send
+  `-A "<a real crawler UA>"` and confirm from the body which
+  document came back.
+- Headless browsers are CRAWLER-lane from dash-improve-my-llms 2.9.0
+  (measured on the wheel, 2026-08-29: `HeadlessChrome/…` and a
+  Playwright UA classify `lane: crawler, bot_type: monitor,
+  vendor_key: headless`; 2.8.0 said browser). A host that screenshots
+  ITSELF for social cards — Playwright, Puppeteer, a headless Chrome
+  in a job — now receives the crawler document, not the app shell,
+  unless the screenshot service sends its own non-headless UA. If a
+  card went blank or textual after a floor bump, look here before
+  the template. Same class as the two lane traps above: name the UA,
+  confirm from the body which document answered.
+- Which branch Render actually builds can be measured on a GREEN push,
+  by TIMING, without waiting for a red one (leaflet, 2026-08-31 — the
+  method, not just its answer). `main == release == wire` at every step
+  of a promote tells you nothing: both refs hold the same sha, so the
+  wire cannot separate them, and four promotes across three hosts said
+  nothing at all. Sample `/healthz` every ~45 s from the moment of the
+  push and note when the swap lands relative to the PROMOTE, not the
+  push. leaflet measured build+swap at 2m03s from the promote; had
+  Render reacted to the push instead, the same 2m03s would have put the
+  build live ~1m52s earlier than it appeared, and the wire was still
+  serving the old sha well past that point. That is STRONG EVIDENCE
+  that Render is building `release` — not proof, since a queued or slow
+  build could in principle produce the same shape. The canonical
+  discriminator is unchanged and still owed: the first push that goes
+  RED on main must leave `release` unmoved and the wire unchanged.
+  Worth taking on every SECOND promote — it costs one background
+  sampler and converts "asserted" into "strongly evidenced".
+  SAMPLE THE WIRE AND THE RUN STATE IN THE SAME LOOP — eight samples at
+  45 s, one timeline (pannellum's 15917bc promote, seat-verified; four
+  hosts now have a pair measured this way). Two separate reconstructions
+  invite exactly the arithmetic error the measurement exists to avoid:
+  flexlayout's retroactive read off CD step timestamps was coarser and
+  it said so. pannellum's live pair: push 21:55:44Z · promote 21:58:20Z ·
+  wire still OLD at 21:58:47Z · wire NEW at 21:59:33Z — 73 s after the
+  promote, 183 s after the push. The old-then-new bracket around the
+  promote is the whole evidence; a single "new" sample proves nothing
+  because it cannot say what it followed.
+  TIME AGAINST THE PROMOTE STEP'S `completed_at`, NEVER THE DEPLOY
+  JOB'S (emojimart 166e33a, seat-verified). The job CONTAINS the
+  build-match wait, so it completes after the swap by construction and
+  the arithmetic reads "swap before promote" every single time —
+  emojimart measured a 9 s impossible ordering before catching it. A
+  measurement that cannot produce a sane answer is worse than none,
+  because the number looks like data.
+  AND THE SAMPLER MUST RETRY: three attempts per sample, and record
+  "unreadable" as a state DISTINCT from "old" (emojimart). The container
+  restart lands exactly where the bracket needs its sample, so an
+  un-retried loop is systematically blind at the only moment that
+  matters — and collapsing unreadable into old invents a bracket that
+  was never observed. leaflet's run shows the shape: two consecutive
+  unreadable samples sit between its last old and first new.
+  THE TEMPLATE'S OWN PAIR, run 33576940156 / ac20ed1, 2026-09-02, and it
+  reproduces BOTH corrections rather than merely following them:
+    00:50:07Z  run created (push)
+    00:51:59Z  STEP 'Promote to release' completed_at
+    00:52:03Z  wire still old (2b1edd5)
+    00:52:53Z  wire UNREADABLE   <- the restart, inside the bracket
+    00:53:38Z  wire NEW (ac20ed1)
+    00:53:51Z  JOB 'deploy to render' completed_at
+  promote STEP -> swap = **99 s** (sane; pannellum 73 s, leaflet ~123 s).
+  deploy JOB -> swap = **-13 s** — the impossible ordering, reproduced on
+  the first host to try the method, which is why the step/job distinction
+  is in this trap and not a footnote. The UNREADABLE sample fell exactly
+  between last-old and first-new: folding it into "old" would have
+  reported a 45 s bracket nobody observed.
+  A SECOND PAIR ON THE SAME HOST, run 33595792466 / 4e17525, 2026-09-02,
+  and it CORRECTS the sentence above: 05:42:53Z created · 05:45:08Z
+  promote STEP · 05:45:26Z old · 05:46:16Z UNREADABLE · 05:47:01Z NEW ·
+  05:47:01Z deploy JOB. promote STEP -> swap = **113 s** (so 99 s was the
+  host, not that push's weather — stable to ~14 s across two runs) and
+  push -> swap = 248 s. But deploy JOB -> swap = **0 s**, not negative.
+  The earlier wording — "reads swap before promote every time" — is MINE
+  and it overstates: the job completes when the build-match wait SEES the
+  swap, so it tracks the swap and never the promote, landing at or after
+  it. Useless for timing either way, which is the point; predicting the
+  SIGN was a claim two runs did not support. And the UNREADABLE sample
+  landed inside the bracket twice out of two, which makes the retry a
+  property of the restart rather than one host's luck.
+  The inference at its real strength: had Render reacted to the PUSH at
+  00:50:07Z, the same 99 s build+swap would have served the new build by
+  ~00:51:46Z, and the wire was still old at 00:52:03Z — so it reacted to
+  the PROMOTE. Fifth host with a measured pair; still not proof, and the
+  red push on main remains the discriminator.
+  THE SAMPLER IS A SCRIPT NOW (1.6.44 item 17), so nobody re-derives it
+  under time pressure at the moment a promote is landing:
+  `python3 scripts/promote_sampler.py --sha <run sha>` — eight samples at
+  45 s, one loop over the wire and the run state, three attempts per
+  sample, `unreadable` recorded as its own state, and it REFUSES to
+  report a bracket it did not observe (no OLD sample before the first
+  NEW is an error, not a result, because a single "new" sample cannot
+  say what it followed). Start it BEFORE the promote. It prints the
+  bracket and then tells you to time against the promote STEP's
+  `completed_at`; it deliberately does not read the job's, because the
+  only thing that number can produce is a wrong answer that looks like
+  data.
+- And the same family one turn later, MEASURED TWICE — this seat and
+  clerkhook hit it independently within the hour, so it is a property of
+  the technique and not one seat's slip: extracting a package constant with
+  `re.search(r"EVENT_FIELDS = \((.*?)\)", src, re.S)` truncated at a `)`
+  inside a COMMENT in the middle of the tuple, printed eight of sixteen
+  fields, and reported `'ua' present: False` — confidently, with a
+  number beside it. Caught only because eight looked too few. When you
+  parse a language construct out of source with a regex, check the count
+  against something independent (the file, `python -c "from … import X;
+  print(len(X))"`, the CHANGELOG) before you believe a negative.
+- A shell's CWD can shadow an installed package, and it produces the most
+  convincing wrong answer of the family: measuring `EVENT_FIELDS` across
+  two dimll versions, this seat ran the comparison with the cwd inside an
+  unpacked 2.9.4 wheel, so `import dash_improve_my_llms` resolved from
+  the CURRENT DIRECTORY rather than site-packages — and two readings of
+  ONE wheel were reported as two versions agreeing, in a CHANGELOG and a
+  shipped spec (2026-09-01, corrected the same day). The load-bearing
+  half was true and the supporting detail was invented. When comparing
+  versions, `print(mod.__file__)` and assert it is the path you meant, or
+  set PYTHONPATH explicitly and import in a fresh process per version;
+  and print the unpacked file count before the read (note 88 applied to
+  the check itself, leaflet). Note also that parsing the constant out of
+  source is not the safe alternative: the regex form truncated on a `)`
+  inside a comment (measured twice — this seat and clerkhook), and an AST
+  form written to replace it agreed with the wrong answer until the
+  import settled it. IMPORT THE THING.
+- NAME THE CHECK THAT ACTUALLY RAN, not the one you meant to run (1.6.44
+  item 7). `.flake8` excludes `docs/*/`, so for a year "flake8 is clean"
+  was reported as covering the exec'd examples a documentation site
+  RENDERS, and it never read one of them: a file in `docs/` containing
+  `def broken(:` leaves `flake8 docs/` at exit 0 with zero output —
+  measured again here 2026-09-04, alongside `py_compile` exiting 1 with
+  the SyntaxError on the same file. The general form of the reporting
+  rule: a report says which invocation produced the number, over how
+  many files, and with what exit code, because "lint passed" is a claim
+  about a command and everyone reads it as a claim about the code. CI
+  runs the sweep as its own step (`py_compile sweep of docs/`) and fails
+  when the corpus is EMPTY, since a sweep of nothing is the same green
+  as a sweep of something clean.
+- A CD LANE THAT CALLS ci.yml MUST NOT ALSO LET ci.yml RUN ITSELF on a
+  push to main (1.6.44 item 12, clerkhook 44c0c27). Both runs resolve to
+  the concurrency group `ci-${{ github.ref }}` with
+  `cancel-in-progress: true`, so one is killed at random; when the
+  standalone run wins, CD's `test` job is CANCELLED, `deploy` skips,
+  `release` never moves — and `main` ahead of `release` then reads as an
+  ordinary pending push instead of as the accident it is. Detect:
+  `ci.yml` declares `push: branches: [main]` AND `cd.yml` has
+  `uses: ./.github/workflows/ci.yml`. Acceptance: a `workflow_call`
+  creates NO run of its own, so the next push to main adds ZERO rows to
+  the CI workflow list and the matrix appears exactly once, as `ci / *`
+  jobs INSIDE the CD run. The template has the correct shape
+  (pull_request + workflow_dispatch + workflow_call) and the pin is in
+  `tests/test_cd_promotes_release.py` so it cannot drift back.
+  Sub-trap, met while writing that pin: PyYAML parses an unquoted `on:`
+  key as the BOOLEAN `True`, so `workflow["on"]` raises KeyError on
+  every workflow file in this repo. A test that reads triggers must try
+  both keys — one that catches the KeyError and moves on asserts
+  nothing at all.
+- A FORK'S TRAPS SECTION DRIFTS BEHIND THE TEMPLATE'S SILENTLY (1.6.44
+  item 14, emojimart 166e33a). The kit is contract-class, so the sync
+  never copies it, and nothing printed the gap: emojimart carried 7
+  entries against the template's 22, and its HEAD trap still held the
+  diagnosis 1.6.32 had corrected — a fork can be reading, and acting
+  on, a fact the fleet retired months ago. Detect, printed as a PAIR:
+  `python3 scripts/kit_traps.py <fork>/.claude/CLAUDE.md` reports
+  `fork N / template M` and names what is missing. Matching is by
+  token overlap of each trap's opening sentence, not by exact text,
+  because a fork is EXPECTED to merge a trap into its own wording —
+  the check exists to find a trap that never arrived, never to police
+  prose, and a strict check would train forks to paste over their own
+  adaptations. MERGED, NEVER INSTALLED OVER, in both directions.

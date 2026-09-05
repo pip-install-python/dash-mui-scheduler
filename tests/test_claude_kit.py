@@ -14,6 +14,8 @@ import os
 import re
 import subprocess
 from pathlib import Path
+
+import pytest
 from urllib.parse import urlparse
 
 REPO = Path(__file__).resolve().parent.parent
@@ -492,6 +494,7 @@ def _normalise(text: str) -> str:
     """
     flat = re.sub(r"^\s*>\s?", " ", text, flags=re.M)
     flat = flat.replace("**", "").replace("__", "").replace("*", "")
+    flat = flat.replace("`", "")          # a code span splits a phrase too
     return re.sub(r"\s+", " ", flat).lower()
 
 
@@ -546,3 +549,140 @@ def test_the_kit_states_the_rule_about_strings_not_only_comments():
         "and that half is where this repo's own 1.6.44 build went red"
     )
     assert "a docstring is a string" in flat
+
+
+# ------------------------ 1.6.44 item 14: traps-section currency, per fork --
+
+
+def _kit_traps():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "kit_traps", REPO / "scripts" / "kit_traps.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_this_forks_traps_section_is_not_thin():
+    """A count, printed, before anything is concluded from a comparison."""
+    kt = _kit_traps()
+    entries = kt.trap_entries((REPO / ".claude" / "CLAUDE.md").read_text())
+    assert len(entries) >= 25, (
+        f"only {len(entries)} trap entries — this fork was 14 against the "
+        "template's 28 before item 14 merged the fleet-class ones"
+    )
+
+
+def test_the_matcher_does_not_report_an_adaptation_as_an_absence():
+    """The whole reason matching is by TOKEN OVERLAP and not exact text.
+
+    A fork is EXPECTED to have merged a trap into its own wording and added
+    host-specific clauses. A strict check would report those as absence and
+    train the fork to paste over its own adaptations — the opposite of what
+    item 14 asks for.
+    """
+    kt = _kit_traps()
+    template_entry = (
+        "Probe with GET, not HEAD — HEAD responses omit the Link headers, "
+        "and the discovery relations live there."
+    )
+    adapted = [
+        "Probe with GET, never HEAD — HEAD responses omit the Link headers "
+        "where the discovery relations live, and this host's FastAPI lane "
+        "405s them anyway below dimll 2.9.4."
+    ]
+    assert kt._present(template_entry, adapted), (
+        "an adapted trap reads as missing — the matcher is too strict and "
+        "will train forks to overwrite their own wording"
+    )
+    assert not kt._present(template_entry, ["Something else entirely."])
+
+
+def test_a_colon_early_in_an_adapted_sentence_defeats_the_matcher():
+    """A KNOWN LIMIT of the template's matcher, pinned rather than hidden.
+
+    `_tokens` compares only the FIRST SENTENCE, and the sentence splitter
+    treats a colon as a terminator. So a fork that opens its adaptation with
+    a clause like "…, on this host too: …" has its comparable text truncated
+    to a handful of words and the trap reads as ABSENT — the false absence
+    item 14 exists to avoid, arriving through the sentence splitter rather
+    than through strictness.
+
+    Not fixed here: `scripts/kit_traps.py` is the template's tool and a fork
+    quietly改 its matching semantics would make every fork's count
+    incomparable. Recorded, reported upstream, and pinned so the day the
+    template fixes it this test says so.
+    """
+    kt = _kit_traps()
+    template_entry = (
+        "Probe with GET, not HEAD — HEAD responses omit the Link headers, "
+        "and the discovery relations live there."
+    )
+    colon_first = [
+        "Probe with GET, never HEAD, on this host too: HEAD responses omit "
+        "the Link headers that carry the discovery relations."
+    ]
+    assert not kt._present(template_entry, colon_first), (
+        "the matcher now handles an early colon — the upstream fix landed "
+        "and this limitation note can go"
+    )
+
+
+def test_the_deploy_proof_line_names_the_release_branch():
+    """The contradiction item 14 found HERE, amended in place.
+
+    This kit carried an unqualified `build == HEAD is the deploy proof` a
+    hundred lines above the fuller `HEAD of release` trap. A reader meeting
+    the first one was sent to the wrong ref, and `main` ahead of `release`
+    then reads as drift instead of an uncertified push pending. A correction
+    that only appends leaves the wrong answer where a reader looks first.
+    """
+    text = (REPO / ".claude" / "CLAUDE.md").read_text()
+    flat = _normalise(text)
+    assert "build == head is the deploy proof" not in flat, (
+        "the unqualified deploy-proof line is back"
+    )
+    assert "build == head of release is the deploy proof" in flat
+
+
+def test_the_currency_check_reports_a_comparison_it_did_not_make(tmp_path):
+    """A missing template must print UNKNOWN, never a number.
+
+    Same rule as item 5's skip verdict: an answer that was not computed must
+    not be printed in the shape of one that was.
+    """
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "scripts/kit_traps.py", str(tmp_path / "nope.md")],
+        cwd=REPO, capture_output=True, text=True,
+    )
+    assert "template UNKNOWN" in result.stdout, result.stdout
+    assert "no template kit at" in result.stdout
+
+
+def test_the_fork_is_current_against_a_reachable_template():
+    """Item 14's acceptance, and it SKIPS rather than passes when it cannot
+    run — a comparison against a template that is not on this machine is not
+    a clean bill of health."""
+    kt = _kit_traps()
+    template = kt.SIBLING_TEMPLATE
+    if not template.exists():
+        pytest.skip(f"no template checkout at {template} to compare against")
+
+    fork_n, template_n, missing = kt.compare(
+        (REPO / ".claude" / "CLAUDE.md").read_text(), template.read_text())
+    names = [kt.key(m) for m in missing]
+
+    # Items 18 and 19 add their own traps later in this same drop. Named
+    # individually so the exemption cannot quietly cover a third.
+    pending = {"a verify verdict is metering evidence, never sole authorisat",
+               "a proxied robots.txt is not your robots.txt (1.6.44 item 19;"}
+    unexplained = [n for n in names
+                   if not any(n.startswith(p[:40]) for p in pending)]
+    assert unexplained == [], (
+        f"fork {fork_n} / template {template_n}; missing and unaccounted "
+        f"for: {unexplained}"
+    )
