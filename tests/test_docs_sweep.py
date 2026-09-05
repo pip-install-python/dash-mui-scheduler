@@ -27,6 +27,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
 
@@ -64,40 +66,91 @@ def test_every_docs_module_compiles():
     )
 
 
-def test_flake8_does_not_read_docs_so_the_sweep_is_load_bearing():
-    """The trap itself, pinned — not the linter's verdict, its SILENCE.
+def test_the_lint_config_excludes_docs():
+    """The sweep's premise, checked WITHOUT running the linter.
 
-    If `.flake8` ever stops excluding `docs/*/`, this goes red and the CI
-    step can be reconsidered. Until then, a green `flake8 docs/` says
-    nothing at all about those files and this test is what records that.
+    This is the tool-free half, and it is the half CI's TEST job can actually
+    run: that job installs the app's requirements plus pytest and httpx —
+    NOT flake8, which lives in the lint job. The first version of this module
+    shelled out to `python -m flake8` and took every matrix leg red for that
+    reason (CD run 33996771397: all four test legs failed at the test step,
+    `ci / lint` itself green).
+
+    Item 10's own rule, met from the other side, and I had written that rule
+    into the kit four commits earlier: NAME THE TOOLS WHOSE INVOCATION IS NOT
+    THE ONE YOUR CHECK WILL HAVE. I applied it to my reports and not to a
+    test I wrote in the same release. A test that needs a tool the job does
+    not install is not testing the code, it is testing the job.
     """
     config = (REPO / ".flake8").read_text()
-    assert "docs/*/" in config, (
-        "`.flake8` no longer excludes docs/*/ — re-check whether the "
-        "py_compile sweep is still the only reader of those files"
+    exclude = config.split("exclude", 1)[1].split("per-file-ignores", 1)[0]
+    assert "docs/*/" in exclude, (
+        "`.flake8` no longer excludes docs/*/ — the sweep's premise changed, "
+        "so read it again before trusting either check"
     )
 
-    probe = DOCS / "quickstart" / "_sweep_probe.py"
+
+def test_py_compile_catches_a_broken_docs_file(tmp_path):
+    """The other half, and it needs nothing but the interpreter.
+
+    Written to tmp_path, NOT into docs/: py_compile does not care where the
+    file lives, and a test that writes into the repository is a test that
+    errors on any read-only checkout. Two peer sandboxes read that error as
+    a defect in this repo before it was tracked down.
+    """
+    probe = tmp_path / "_pycompile_probe.py"
     probe.write_text("def broken(:\n    pass\n")
+    compiled = subprocess.run(
+        [sys.executable, "-m", "py_compile", str(probe)],
+        cwd=REPO, capture_output=True, text=True,
+    )
+    assert compiled.returncode != 0, (
+        "py_compile accepted `def broken(:` — the sweep would not catch a "
+        "syntax error either, and item 7 has no teeth"
+    )
+
+
+def test_flake8_is_actually_silent_on_docs_where_it_is_installed():
+    """The MEASUREMENT, wherever the tool exists — and a SKIP where it does not.
+
+    Skipped rather than passed (item 5's rule): a check that could not run is
+    not a check that passed, and this one only exists to demonstrate the
+    linter's silence. It runs locally and in the lint job's environment; the
+    two tests above carry the claim everywhere else.
+    """
+    # Ask whether the tool RUNS, not whether a module name resolves.
+    # `find_spec` answers None only when the package is absent, which is CI's
+    # case — but a present-and-broken install resolves fine and then fails in
+    # the subprocess, and I met exactly that shape while reproducing this
+    # failure locally. The question the test needs answered is "can I invoke
+    # it", so that is the question it asks.
+    probe_tool = subprocess.run([sys.executable, "-m", "flake8", "--version"],
+                                cwd=REPO, capture_output=True, text=True)
+    if probe_tool.returncode != 0:
+        pytest.skip("flake8 cannot be invoked here — the lint job has it, the "
+                    "test job does not, and that asymmetry is the point")
+
+    # This one genuinely must live under docs/ — the whole claim is about
+    # what `flake8 docs/` does with a file there. So the WRITE is guarded
+    # rather than the path moved: a read-only checkout skips instead of
+    # erroring, which is the difference between "cannot check" and "broken".
+    probe = DOCS / "quickstart" / "_flake8_probe.py"
+    try:
+        probe.write_text("def broken(:\n    pass\n")
+    except OSError as exc:
+        pytest.skip(f"docs/ is not writable here ({exc.__class__.__name__}), "
+                    "so the linter's silence cannot be demonstrated")
     try:
         linted = subprocess.run(
             [sys.executable, "-m", "flake8", "docs/"],
-            cwd=REPO, capture_output=True, text=True,
-        )
-        compiled = subprocess.run(
-            [sys.executable, "-m", "py_compile", str(probe)],
             cwd=REPO, capture_output=True, text=True,
         )
     finally:
         probe.unlink(missing_ok=True)
 
     assert linted.returncode == 0 and linted.stdout.strip() == "", (
-        "flake8 now reports on docs/ — this test's premise has changed:\n"
+        "flake8 now reports on docs/ — this module's premise has changed:\n"
         f"{linted.stdout}"
-    )
-    assert compiled.returncode != 0, (
-        "py_compile accepted `def broken(:` — the sweep would not catch a "
-        "syntax error either, and item 7 has no teeth"
     )
 
 
