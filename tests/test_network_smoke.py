@@ -65,15 +65,22 @@ def wired(battery, client, monkeypatch):
 
     `fetch` delegates to `fetch_raw`, so patching the one covers both. The
     signature is `fetch_raw(url, ua=..., method=..., body=..., headers=...)`
-    returning `(status, lowercased_headers, bytes)`. Only GET is used by the
-    satellite battery, so a non-GET here is a bug in the script rather than
-    something to emulate.
+    returning `(status, headers, bytes)`.
+
+    WIDENED, NOT WORKED AROUND, at 1.6.44 item 5. This stub used to assert
+    `method == "GET"` and flatten headers with `dict(...)`. Both would have
+    made item 5's checks unable to fail in-process: the parity check issues
+    HEAD, and the discovery check reads REPEATED `Link` headers that a plain
+    dict collapses to the last one. A stub narrower than the script is the
+    thing under test.
     """
     seen_agents = []
 
     def fetch_raw(url, ua=battery.UA, method="GET", body=None, headers=None,
                   timeout=None, retries=1):
-        assert method == "GET", f"the satellite battery issued a {method}"
+        assert method in ("GET", "HEAD"), (
+            f"the satellite battery issued a {method}"
+        )
         seen_agents.append(ua)
 
         # Off-host URLs — today just the CDN-hosted social card — resolve to a
@@ -87,8 +94,11 @@ def wired(battery, client, monkeypatch):
 
         path = url[len(BASE):] if url.startswith(BASE) else url
         accept = (headers or {}).get("Accept")
-        response = client.get(path or "/", user_agent=ua, accept=accept)
-        return response.status, dict(response.headers), response.raw
+        send = client.head if method == "HEAD" else client.get
+        response = send(path or "/", user_agent=ua, accept=accept)
+        # `_Headers`, not a plain dict: repeated names survive, which is what
+        # `discovery_link_headers_per_lane` reads.
+        return response.status, battery._Headers(response.pairs), response.raw
 
     monkeypatch.setattr(battery, "fetch_raw", fetch_raw)
     # The suite legitimately runs on the adjacent matrix legs, and the
@@ -256,3 +266,109 @@ def test_the_batterys_default_ua_is_browser_lane_and_still_internal():
     assert INTERNAL_UA_TOKEN in ns.UA and ns.UA.endswith("network-smoke")
     assert classify(ns.CRAWLER_UA)["lane"] == "crawler"
     assert INTERNAL_UA_TOKEN in ns.CRAWLER_UA
+
+
+# --------------------------------- 1.6.44 item 5: four fleet invariants --
+
+
+ITEM_5_CHECKS = (
+    "head_get_parity_three_uas",
+    "api_llms_rows_present",
+    "discovery_link_headers_per_lane",
+    "directory_counts_are_derived",
+)
+
+
+def test_the_four_invariants_are_registered_by_name(wired, capsys):
+    """Item 5's detect. Registered, not merely defined — a check that is
+    never added to the tuple runs nowhere and reports nothing."""
+    wired.satellite_checks(BASE)
+    names = {name for name, _verdict, _detail in wired._RESULTS}
+    missing = sorted(set(ITEM_5_CHECKS) - names)
+    assert missing == [], f"{missing} are not registered in the battery"
+    capsys.readouterr()
+
+
+def test_skip_is_a_verdict_and_not_a_pass(wired):
+    """The machinery item 5 needed first.
+
+    A check that passes when its precondition is absent reads identically to
+    one that swept the corpus and found it clean. `skip` has to be its own
+    verdict or the four checks below cannot be trusted on any host that
+    legitimately lacks one of them.
+    """
+    wired._RESULTS.clear()
+    wired.check("a_check_that_cannot_apply",
+                lambda: wired.skip("nothing to sweep here"))
+    name, verdict, detail = wired._RESULTS[-1]
+    assert verdict == wired.SKIP, (name, verdict)
+    assert verdict != wired.PASS
+    assert "nothing to sweep" in detail
+
+
+def test_an_empty_api_packages_skips_rather_than_passes(wired, monkeypatch):
+    """Item 5's acceptance, in BOTH directions.
+
+    This host declares API_PACKAGES = ['dash_mui_scheduler'], so unlike the
+    template it exercises the RUNNING direction for real; the empty case is
+    monkeypatched so the skip cannot pass as a constant either.
+    """
+    import lib.constants as constants
+
+    def verdict_for(packages):
+        monkeypatch.setattr(constants, "API_PACKAGES", packages)
+        wired._RESULTS.clear()
+        wired.satellite_checks(BASE)
+        return {n: v for n, v, _d in wired._RESULTS}["api_llms_rows_present"]
+
+    assert verdict_for([]) == wired.SKIP, (
+        "an empty API_PACKAGES must SKIP — a pass there is a check that "
+        "swept nothing"
+    )
+    assert verdict_for(["dash_mui_scheduler"]) == wired.PASS, (
+        "the check does not pass on this host's real declaration, so the "
+        "skip above proves nothing"
+    )
+    assert verdict_for(["a_package_that_is_not_here"]) == wired.FAIL, (
+        "the check cannot fail, so neither of the readings above means "
+        "anything"
+    )
+
+
+def test_the_header_map_keeps_repeated_names(battery):
+    """`get_all()` — the muicharts trap. A plain dict keeps only the last."""
+    headers = battery._Headers([
+        ("Link", '<https://x/llms.txt>; rel="alternate"'),
+        ("Link", '<https://x/llms.txt>; rel="describedby"'),
+        ("Content-Type", "text/html"),
+    ])
+    assert len(headers.get_all("link")) == 2
+    assert headers["link"].endswith('rel="describedby"'), "last-wins preserved"
+    assert headers["content-type"] == "text/html"
+    assert headers.get_all("nothing-here") == []
+
+
+def test_both_link_shapes_parse_to_the_same_relations(battery):
+    """`get_all()` is necessary and NOT sufficient.
+
+    Over HTTP/2 a host may serve both discovery relations comma-FOLDED in one
+    header. A caller that counts the list reads one relation where there are
+    two, so the check parses relations out of the joined values instead —
+    and both shapes must give the same answer.
+    """
+    import re
+
+    def relations(pairs):
+        joined = ", ".join(battery._Headers(pairs).get_all("link"))
+        return set(re.findall(r'rel="?([a-zA-Z-]+)"?', joined))
+
+    repeated = [
+        ("link", '<https://x/llms.txt>; rel="alternate"'),
+        ("link", '<https://x/llms.txt>; rel="describedby"'),
+    ]
+    folded = [
+        ("link", '<https://x/llms.txt>; rel="alternate", '
+                 '<https://x/llms.txt>; rel="describedby"'),
+    ]
+    assert relations(repeated) == relations(folded) == {"alternate",
+                                                        "describedby"}

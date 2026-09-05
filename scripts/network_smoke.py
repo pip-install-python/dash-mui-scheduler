@@ -158,6 +158,39 @@ class SmokeFailure(Exception):
     pass
 
 
+class SmokeSkip(Exception):
+    """A check that cannot apply here — recorded as `skip`, never as `pass`.
+
+    The distinction is the whole point (1.6.44 item 5): a check that silently
+    passes when its precondition is absent is a check that swept nothing, and
+    it reads identically to one that swept the corpus and found it clean.
+    """
+
+
+class _Headers(dict):
+    """Lower-cased response headers that also remember REPEATED names.
+
+    `dict(resp.headers)` and `{k: v for k, v in resp.headers.items()}` both
+    keep only the LAST value per name, and dash-improve-my-llms emits several
+    `Link` headers (the muicharts trap). Every existing caller wants the dict,
+    so the dict is what this is; `get_all()` is the repaired accessor.
+
+    `get_all()` is necessary and NOT sufficient: a folded value is equally
+    legal — over HTTP/2 a host may return both discovery relations
+    comma-joined in ONE `link` header — so a caller counting relations must
+    PARSE the values it gets back rather than count the list.
+    """
+
+    def __init__(self, pairs):
+        self._all: dict = {}
+        for key, value in pairs:
+            self._all.setdefault(key.lower(), []).append(value)
+        super().__init__({k: v[-1] for k, v in self._all.items()})
+
+    def get_all(self, name: str) -> list:
+        return list(self._all.get(name.lower(), []))
+
+
 def _ssl_context() -> ssl.SSLContext:
     """Verify certificates via certifi when available.
 
@@ -205,11 +238,9 @@ def fetch_raw(url: str, ua: str = UA, method: str = "GET",
             with urllib.request.urlopen(
                 req, timeout=timeout, context=SSL_CONTEXT
             ) as r:
-                return (r.status, {k.lower(): v for k, v in r.headers.items()},
-                        r.read())
+                return (r.status, _Headers(r.headers.items()), r.read())
         except urllib.error.HTTPError as e:
-            return (e.code, {k.lower(): v for k, v in e.headers.items()},
-                    e.read())
+            return (e.code, _Headers((e.headers or {}).items()), e.read())
         except Exception as exc:  # timeout, reset, truncated read, …
             last_exc = exc
     raise last_exc
@@ -239,6 +270,8 @@ def check(name: str, fn) -> None:
     try:
         fn()
         record(name, PASS)
+    except SmokeSkip as exc:
+        record(name, SKIP, str(exc))
     except SmokeFailure as exc:
         record(name, FAIL, str(exc))
     except Exception as exc:  # network/parse error → still a failure
@@ -248,6 +281,11 @@ def check(name: str, fn) -> None:
 def expect(cond: bool, msg: str) -> None:
     if not cond:
         raise SmokeFailure(msg)
+
+
+def skip(msg: str) -> None:
+    """This check does not apply to this host. Never a pass."""
+    raise SmokeSkip(msg)
 
 
 # ------------------------------------------------------------- the battery --
@@ -282,6 +320,27 @@ def declared_python_minor():
     except OSError:
         pass
     return None
+
+
+def _served_llms_version(get):
+    """The `llms_version` the HOST reports, as a tuple, or None.
+
+    1.6.44 item 1 put the resolved dash-improve-my-llms version on /healthz
+    precisely so a reader from outside could stop guessing it. This is the
+    first caller: a wire check that must not fail a host for a route-level
+    HEAD rule the host's own wheel cannot provide, and must not excuse one
+    that can.
+    """
+    try:
+        status, _, text = get("/healthz")
+        if status != 200:
+            return None
+        raw = json.loads(text).get("llms_version")
+        if not raw:
+            return None
+        return tuple(int(n) for n in str(raw).split(".")[:3] if n.isdigit())
+    except Exception:
+        return None
 
 
 def satellite_checks(base: str) -> None:
@@ -484,8 +543,154 @@ def satellite_checks(base: str) -> None:
             expect(icon_status == 200,
                    f"manifest icon {icon['src']} returns {icon_status}")
 
+    # ---------------------------------------------------------------------
+    # The four fleet invariants (1.6.44 item 5). Most forks had some of these
+    # as local tests; here they run against the DEPLOYED host on every CD, so
+    # a defect that only appears on the wire — a router with no HEAD rule, a
+    # lane that lost its discovery headers, a directory that drifted from its
+    # own module — is caught by the deploy that shipped it.
+    name_of_parity = "head_get_parity_three_uas"
+
+    def head_get_parity_three_uas():
+        """HEAD answers wherever GET does, in every lane.
+
+        `/healthz` alone with one UA is not the test: the prerender
+        middleware answers a crawler-UA `HEAD /` before routing, so that one
+        path can return 200 on a host whose every other route 405s — measured
+        on this repo's own FastAPI lane while building item 2. Probe five
+        paths in three lanes and count the pairs.
+        """
+        paths = ("/healthz", "/llms.txt", "/robots.txt", "/sitemap.xml", "/")
+        agents = (("browser", BROWSER_UA), ("crawler", CRAWLER_UA),
+                  ("engine", _probe_ua("curl/8.7.1", "network-smoke")))
+
+        # ONE pair is exempt, and only on a host that CANNOT yet answer it:
+        # `/` to a browser UA is Dash's lifespan-registered page catch-all,
+        # which no application code can declare methods on — dash-improve-my-
+        # llms >= 2.9.4 adds HEAD by walking the router. So ask the host
+        # which wheel it is running rather than assuming: `llms_version` on
+        # /healthz is item 1's key, and this is the first thing to read it.
+        # A host that does not report one is held STRICTLY — absence is not
+        # an excuse, and production passes this strictly today.
+        served = _served_llms_version(get)
+        catchall_exempt = served is not None and served < (2, 9, 4)
+
+        mismatches = []
+        exempted = []
+        pairs = 0
+        for path in paths:
+            for lane, ua in agents:
+                get_status, _, _ = get(path, ua=ua)
+                head_status, _, _ = get(path, ua=ua, method="HEAD")
+                pairs += 1
+                if head_status == get_status:
+                    continue
+                if path == "/" and lane == "browser" and catchall_exempt:
+                    exempted.append(
+                        f"{lane} {path}: HEAD {head_status} vs GET "
+                        f"{get_status} — Dash's page catch-all, no HEAD rule "
+                        f"below dimll 2.9.4 (host serves "
+                        f"{'.'.join(str(n) for n in served)})")
+                    continue
+                mismatches.append(
+                    f"{lane} {path}: HEAD {head_status} vs GET {get_status}"
+                    + (" (no HEAD rule for this GET route)"
+                       if head_status == 405 else ""))
+        expect(pairs == len(paths) * len(agents),
+               f"compared {pairs} pairs, expected {len(paths) * len(agents)}")
+        expect(not mismatches, "; ".join(mismatches))
+        if exempted:
+            # Never silent: an exemption nobody can see is indistinguishable
+            # from a check that stopped looking.
+            record(name_of_parity, WARN, "; ".join(exempted))
+
+    def api_llms_rows_present():
+        """A host that declares API_PACKAGES serves a non-empty /api index.
+
+        SKIPPED, never passed, where API_PACKAGES is empty. A pass there
+        would be a check that swept nothing. THIS host declares
+        `dash_mui_scheduler`, so here the check RUNS — the direction the
+        template could not exercise, its own list being empty.
+
+        ROW SHAPE IS NOT ASSUMED. The spec's form counted lines starting
+        `- `, which is the shape of an index that lists entries as bullets.
+        This host's `/api/llms.txt` renders each component's props as a
+        MARKDOWN TABLE, so that heuristic reported "0 entries" against a
+        199-line document carrying every prop of five components — a check
+        failing on its own regex, not on the site. Measured before believing
+        it, which is the only reason it was not filed as a defect. So: each
+        declared package must be NAMED in the document, and the document must
+        carry content rows in either shape.
+        """
+        try:
+            from lib.constants import API_PACKAGES
+        except Exception:
+            skip("no checkout beside this script — API_PACKAGES unreadable")
+        if not API_PACKAGES:
+            skip("API_PACKAGES is empty on this host — nothing to index")
+        status, _, text = get("/api/llms.txt")
+        expect(status == 200, f"/api/llms.txt {status} while API_PACKAGES "
+                              f"declares {len(API_PACKAGES)} package(s)")
+        unnamed = [pkg for pkg in API_PACKAGES if pkg not in text]
+        expect(not unnamed,
+               f"/api/llms.txt never names {unnamed} — the index does not "
+               f"cover what API_PACKAGES declares")
+        rows = [ln for ln in text.splitlines()
+                if ln.strip().startswith("- ")
+                or (ln.strip().startswith("|") and ln.strip().endswith("|"))]
+        expect(len(rows) > 0,
+               f"/api/llms.txt lists 0 entries for {list(API_PACKAGES)} "
+               f"(searched bullet rows and table rows in {len(text)} bytes)")
+
+    def discovery_link_headers_per_lane():
+        """Both lanes advertise the same discovery relations.
+
+        Read every `Link` value, not `headers['link']`: repeated headers keep
+        only the last through a plain dict, and a folded comma-joined value is
+        equally legal. So parse the relations out of everything that came
+        back rather than counting the list.
+        """
+        wanted = {"alternate", "describedby"}
+        for lane, ua in (("browser", BROWSER_UA), ("crawler", CRAWLER_UA)):
+            status, headers, _ = get("/", ua=ua)
+            expect(status == 200, f"{lane} GET / {status}")
+            values = headers.get_all("link")
+            rels = set(re.findall(r'rel="?([a-zA-Z-]+)"?', ", ".join(values)))
+            expect(wanted <= rels,
+                   f"{lane} lane advertises {sorted(rels) or 'no Link header'}"
+                   f" — missing {sorted(wanted - rels)}")
+            expect(all("/llms.txt" in v for v in values),
+                   f"{lane} lane's Link headers do not point at /llms.txt: "
+                   f"{values}")
+
+    def directory_counts_are_derived():
+        """The Network section lists exactly the peers the module names.
+
+        Counts come from `lib/network_directory`, never a literal: a hard
+        number in a battery is a check that stops testing the moment the
+        fleet grows, and passes while doing it.
+        """
+        try:
+            from lib.constants import BASE_URL
+            from lib.network_directory import peers_for
+        except Exception:
+            skip("no checkout beside this script — the directory is unreadable")
+        expected = {p["url"].rstrip("/") for p in peers_for(BASE_URL)}
+        expect(len(expected) > 0,
+               "peers_for() names no peers — nothing to hold the wire to")
+        _status, _, text = get("/llms.txt")
+        section = text.split("## Network", 1)[-1]
+        missing = sorted(u for u in expected if u.rstrip("/") not in section)
+        expect(not missing,
+               f"{len(missing)} of {len(expected)} peers absent from the "
+               f"/llms.txt Network section: {missing[:3]}")
+
     for name, fn in (
         ("healthz_ok", healthz_ok),
+        ("head_get_parity_three_uas", head_get_parity_three_uas),
+        ("api_llms_rows_present", api_llms_rows_present),
+        ("discovery_link_headers_per_lane", discovery_link_headers_per_lane),
+        ("directory_counts_are_derived", directory_counts_are_derived),
         ("python_matches_declared", python_matches_declared),
         ("llms_txt_identity", llms_txt_identity),
         ("llms_txt_names_the_hub", llms_txt_names_the_hub),

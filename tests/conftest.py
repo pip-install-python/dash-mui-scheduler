@@ -136,9 +136,10 @@ def app(app_module):
 
 
 class Response:
-    __slots__ = ("status", "text", "raw", "headers")
+    __slots__ = ("status", "text", "raw", "headers", "pairs")
 
-    def __init__(self, status: int, text: str, headers=None, raw: bytes = b"") -> None:
+    def __init__(self, status: int, text: str, headers=None, raw: bytes = b"",
+                 pairs=None) -> None:
         self.status = status
         self.text = text
         # The undecoded body. Only one caller needs it — the social-card
@@ -151,6 +152,15 @@ class Response:
         # next agent. Keys are lowercased because the backends disagree on
         # casing — Werkzeug hands back `Content-Type`, httpx `content-type`.
         self.headers = {k.lower(): v for k, v in (headers or {}).items()}
+        # ...and the UNFLATTENED pairs beside them (1.6.44 item 5). The dict
+        # above keeps only the LAST value per name, and dash-improve-my-llms
+        # emits several `Link` headers — so a check that counts discovery
+        # relations reads one where there are two. Kept as pairs rather than
+        # a multidict so a caller can see exactly what the lane sent,
+        # repeated or comma-folded.
+        self.pairs = list(pairs) if pairs is not None else [
+            (k.lower(), v) for k, v in (headers or {}).items()
+        ]
 
     @property
     def ok(self) -> bool:
@@ -187,10 +197,12 @@ class Client:
             # so a test that merely checks a favicon or a manifest icon
             # RESOLVES would blow up on the PNG's first byte.
             return Response(r.status_code, body.decode("utf-8", "replace"),
-                            dict(r.headers), body)
+                            dict(r.headers), body,
+                            pairs=[(k.lower(), v) for k, v in r.headers])
 
         r = self._raw.get(path, headers=headers)
-        return Response(r.status_code, r.text, dict(r.headers), r.content)
+        return Response(r.status_code, r.text, dict(r.headers), r.content,
+                        pairs=[(k.lower(), v) for k, v in r.headers.multi_items()])
 
     def head(self, path: str, user_agent: str = BROWSER_UA,
              accept: str = None) -> Response:
@@ -209,10 +221,12 @@ class Client:
             r = self._raw.open(path, method="HEAD", headers=headers)
             body = r.get_data()
             return Response(r.status_code, body.decode("utf-8", "replace"),
-                            dict(r.headers), body)
+                            dict(r.headers), body,
+                            pairs=[(k.lower(), v) for k, v in r.headers])
 
         r = self._raw.head(path, headers=headers)
-        return Response(r.status_code, r.text, dict(r.headers), r.content)
+        return Response(r.status_code, r.text, dict(r.headers), r.content,
+                        pairs=[(k.lower(), v) for k, v in r.headers.multi_items()])
 
 
 @pytest.fixture(scope="session")
