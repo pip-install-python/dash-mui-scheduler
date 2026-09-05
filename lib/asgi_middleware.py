@@ -3,6 +3,23 @@ ASGI/Starlette middleware ports of Flask-only hooks used in this boilerplate.
 
 When the Dash backend is FastAPI, these slot in where the Flask
 ``before_request`` decorator was used.
+
+THERE IS NO ``HeadAsGetMiddleware`` HERE, AND THERE MUST NOT BE (1.6.44
+item 2). The template carried one from 1.6.32/33 — a shim that rewrote HEAD
+to GET above the router — and retired it at 1.6.44 once dash-improve-my-llms
+2.9.4 began walking the router and adding HEAD itself. This repo never had
+it, so a reader coming from the template will find it missing; that absence
+is a decision and DIVERGENCES.md records it.
+
+Why it must not be added now: converting HEAD to GET ABOVE the router makes
+every route look correct whatever the router does. It would MASK the
+package's own fix rather than conflict with it, and would mask a regression
+in that fix exactly as well as it hid the original defect. The right places
+for the fix are the route declaration (``lib/asgi_routes`` now declares
+``methods=["GET", "HEAD"]`` on ``/healthz``) and the package floor (Dash's
+own catch-all, which nothing here can declare methods on).
+Measured on this tree at dimll 2.8.0 before writing this: 11 of 15 HEAD/GET
+pairs matched on this lane; 14 of 15 after the route fix.
 """
 from __future__ import annotations
 

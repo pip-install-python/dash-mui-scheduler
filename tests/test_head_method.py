@@ -135,12 +135,26 @@ def test_no_head_shim_sits_above_the_router():
     — it MASKS the package's fix as effectively as it hid the original
     defect. This repo never had one; re-introducing it would adopt, late, the
     exact thing the fleet just removed.
+
+    PARSED, NOT GREPPED, and this test earned that the hard way. Its first
+    form asserted `"HeadAsGet" not in text` and went RED the moment item 9
+    added the module docstring explaining why there is no shim — a detect
+    matching the documentation of the absence it hunts, which is item 13's
+    rule reproducing itself inside the same build. `ast` answers the question
+    actually being asked: is the class DEFINED or USED here.
     """
+    import ast
     from pathlib import Path
 
     src = Path(__file__).resolve().parent.parent / "lib" / "asgi_middleware.py"
-    text = src.read_text()
-    assert "HeadAsGet" not in text, (
+    tree = ast.parse(src.read_text())
+
+    defined = {node.name for node in ast.walk(tree)
+               if isinstance(node, (ast.ClassDef, ast.FunctionDef))}
+    assert defined, "nothing parsed out of asgi_middleware.py"
+    used = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+
+    assert "HeadAsGetMiddleware" not in (defined | used), (
         "a HEAD-to-GET shim reappeared above the router — the fix belongs in "
         "the route declaration (ours) or the package floor (Dash's), and a "
         "shim would hide a regression in either"

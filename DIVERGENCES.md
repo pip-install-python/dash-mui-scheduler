@@ -12,6 +12,15 @@ boundary between design and drift:
   line: what differs, why, and what the template would otherwise do.
 - An empty list is a statement too: it means this repo intends to
   match the template exactly.
+- Two kinds of entry live here, and the second is the one forks keep
+  losing (1.6.44 item 9). A DIVERGENCE says "this repo differs, on
+  purpose". A RECORDED CONVENTION says "this repo MATCHES, and the
+  match is a decision" — most often something deliberately REMOVED or
+  deliberately not added. Nothing in a diff distinguishes the second
+  from an accident, so a sync restores it and nobody notices; the
+  entry is what makes the absence legible. Both are read by the
+  fan-out machinery and by sync authors, which is why they belong in
+  this FILE rather than in a test docstring — neither reads those.
 
 ## This repo's divergences
 
@@ -158,6 +167,103 @@ boundary between design and drift:
    the expansion turns four of its pins red. The template carries no
    equivalent; retire this entry if it adopts one.
 
+## Recorded conventions (not divergences)
+
+Guard entries. Every line here documents something this repo MATCHES
+or deliberately does NOT carry — an absence a sync would otherwise
+read as drift and helpfully undo. Adding one costs a sentence; the
+alternative costs a fortnight of a defect walking back in.
+
+- **There is no User-Agent list in this app, and there must not be**
+  (1.6.34). `dash_improve_my_llms.classify()` is the one classifier.
+  This repo's tracker carried a local list for a year: it filed
+  ClaudeBot as *search* — Anthropic's training crawler, named as such
+  in the package registry and in this repo's own run.py comment six
+  lines from where the list ignored both — still named the retired
+  `anthropic-ai` / `claude-web` tokens, and counted every UA-less or
+  library client as a human. Every host in the fleet reported those
+  numbers. `tests/test_analytics_classifier.py` greps the module for
+  the old tokens and goes red if one comes back. A token the registry
+  lacks is a pushback to the package seat, never a table here.
+  1.6.44 item 8 extends the same rule to `vendor_class`: PREFER the
+  package's value, DERIVE from the package's own registry when it is
+  absent, never from a local map.
+- **Content images carry width/height and NOT `loading`/`decoding`**
+  (1.6.44 item 6f). Neither is a prop of this Dash's `html.Img` and
+  Dash RAISES on an unknown one — measured here on dash 4.2.0,
+  `TypeError: ... received an unexpected keyword argument: loading`.
+  Adding them takes the whole site down at IMPORT, not at render,
+  because `.. exec::` imports every doc module at page load.
+  `tests/test_a11y_block.py` pins the reason and goes red the day Dash
+  learns them.
+- **No `HeadAsGetMiddleware`, and it is not coming back** (1.6.44
+  item 2). The template carried a Starlette shim from 1.6.32/33 that
+  rewrote HEAD to GET above the router, and RETIRED it at 1.6.44 once
+  dimll 2.9.4 began walking the router and adding HEAD itself. **This
+  repo never had the shim** — the 1.6.32/33 fix was never ported here,
+  the same gap pannellum found in itself — so item 2 had nothing to
+  retire and this is the record half of "retire or record".
+
+  Measured in-process before any change, 5 paths x 3 UAs, at the
+  resolved wheel (dimll 2.8.0): flask **15/15** pairs matched, fastapi
+  **11/15** — HEAD 405 on `/healthz` to all three UAs, and on `/` to a
+  browser UA. Production, on the wire the same day, 15/15: the deployed
+  image resolved a newer wheel than this venv, which is the
+  CI-vs-production gap `llms_version` now makes readable and which
+  `requirements.txt` structurally cannot answer.
+
+  Of those four, one was ours and is fixed at the route:
+  `lib/asgi_routes` declares `methods=["GET", "HEAD"]` on `/healthz`,
+  because FastAPI's `APIRoute` takes `methods` literally where Werkzeug
+  and `starlette.routing.Route` both derive HEAD from GET. That took the
+  ASGI lane to **14/15**. The remaining pair is `/` to a browser UA:
+  Dash's lifespan-registered page catch-all, which nothing in this repo
+  can declare methods on and which dimll >= 2.9.4 fixes for us. It is
+  exempted by VERSION in `tests/test_head_method.py`, not by name, so
+  the fleet pin at 1.6.45 re-arms the assertion without anyone editing
+  the file.
+
+  The template would otherwise have this repo delete a middleware it
+  does not have; a sync must not read the absence as drift, and must
+  not "restore" the shim either. A HEAD-to-GET converter above the
+  router makes every route look correct whatever the router does — it
+  masks the package's fix exactly as well as it hid the original
+  defect. `tests/test_head_method.py::test_no_head_shim_sits_above_the_router`
+  keeps it out.
+- **Item 6's sub-items (d), (e) and (f): recorded, not fixed** — which
+  item 6's own wording allows, and each for a different reason.
+
+  **(d) the mobile console error is NOT VERIFIED HERE, and that is not
+  the same as not reproduced.** The template measured its own: 16
+  console messages on load, all LOG, zero errors. This sandbox cannot
+  bind a socket and has no browser under its control, so no console
+  read was taken on this host at all. Recorded as OWED to the
+  post-push visual pass rather than borrowed from the template's
+  result — a fork that copies another host's measurement has not
+  measured anything.
+
+  **(e) CSS and JS are deliberately unminified.** The wire already
+  serves them gzip-encoded, `assets/` is a few tens of KB of text, and
+  the stylesheet a fork opens on day one should be the one a human
+  wrote. This matches the template's decision; it is recorded because
+  nothing in a diff distinguishes a deliberate non-minification from
+  an unfinished build step.
+
+  **(f) content images: there are none.** This repo's `docs/` contain
+  ZERO markdown images — measured, and the count is asserted in
+  `tests/test_a11y_block.py::test_this_repos_docs_contain_no_markdown_images`
+  so the not-applicable expires the moment a doc adds one. The
+  template ships `lib/directives/headings.py` with an `_intrinsic_size`
+  image renderer; this fork has no `headings.py` at all and needs
+  none. A sync must not read that absence as drift.
+
+  What IS ported from 6(f) is the pin on why its attributes cannot
+  ship: `loading="lazy"` and `decoding="async"` are not props of this
+  Dash's `html.Img` and Dash RAISES on an unknown one — measured here
+  on dash 4.2.0, `TypeError: The html.Img component (version 4.2.0)
+  received an unexpected keyword argument: loading`. The test pins the
+  REASON, so the day Dash learns them it goes red and says so.
+
 ## Retired
 
 - ~~**`components/header.py` keeps three pieces of this fork's identity.**~~
@@ -263,7 +369,12 @@ re-measure when you change what this host serves:
               MIT-licensed component docs and this host does not refuse
               the training crawlers. The template answers 403 on `/`.
     healthz   `full` — the fleet payload (ok, app, backend, build,
-              python, dash_version, geo).
+              python, dash_version, geo) plus, from 1.6.44 items 1 and
+              20, `llms_version` (the RESOLVED dash-improve-my-llms
+              version, which a `>=` floor cannot be read backwards to
+              give) and `ledger` (path, persistent, visits, reads —
+              where this host's traffic record lives and whether it
+              survives a deploy).
     runtime   `docker` — divergence 2. Render ignores PYTHON_VERSION on
               this service; the image is the interpreter declaration.
     deploy    `release-branch` — Render deploys `release`, which only CD
@@ -312,75 +423,6 @@ cannot show Render is watching `release`, because both refs hold the same
 sha and the two configurations are indistinguishable from the wire. The
 discriminating observation is the next push that goes RED on `main`:
 `release` must not move and the wire must not change.
-
-10. **No `HeadAsGetMiddleware`, and it is not coming back** (1.6.44
-    item 2). The template carried a Starlette shim from 1.6.32/33 that
-    rewrote HEAD to GET above the router, and RETIRED it at 1.6.44 once
-    dimll 2.9.4 began walking the router and adding HEAD itself. **This
-    repo never had the shim** — the 1.6.32/33 fix was never ported here,
-    the same gap pannellum found in itself — so item 2 had nothing to
-    retire and this is the record half of "retire or record".
-
-    Measured in-process before any change, 5 paths x 3 UAs, at the
-    resolved wheel (dimll 2.8.0): flask **15/15** pairs matched, fastapi
-    **11/15** — HEAD 405 on `/healthz` to all three UAs, and on `/` to a
-    browser UA. Production, on the wire the same day, 15/15: the deployed
-    image resolved a newer wheel than this venv, which is the
-    CI-vs-production gap `llms_version` now makes readable and which
-    `requirements.txt` structurally cannot answer.
-
-    Of those four, one was ours and is fixed at the route:
-    `lib/asgi_routes` declares `methods=["GET", "HEAD"]` on `/healthz`,
-    because FastAPI's `APIRoute` takes `methods` literally where Werkzeug
-    and `starlette.routing.Route` both derive HEAD from GET. That took the
-    ASGI lane to **14/15**. The remaining pair is `/` to a browser UA:
-    Dash's lifespan-registered page catch-all, which nothing in this repo
-    can declare methods on and which dimll >= 2.9.4 fixes for us. It is
-    exempted by VERSION in `tests/test_head_method.py`, not by name, so
-    the fleet pin at 1.6.45 re-arms the assertion without anyone editing
-    the file.
-
-    The template would otherwise have this repo delete a middleware it
-    does not have; a sync must not read the absence as drift, and must
-    not "restore" the shim either. A HEAD-to-GET converter above the
-    router makes every route look correct whatever the router does — it
-    masks the package's fix exactly as well as it hid the original
-    defect. `tests/test_head_method.py::test_no_head_shim_sits_above_the_router`
-    keeps it out.
-
-11. **Item 6's sub-items (d), (e) and (f): recorded, not fixed** — which
-    item 6's own wording allows, and each for a different reason.
-
-    **(d) the mobile console error is NOT VERIFIED HERE, and that is not
-    the same as not reproduced.** The template measured its own: 16
-    console messages on load, all LOG, zero errors. This sandbox cannot
-    bind a socket and has no browser under its control, so no console
-    read was taken on this host at all. Recorded as OWED to the
-    post-push visual pass rather than borrowed from the template's
-    result — a fork that copies another host's measurement has not
-    measured anything.
-
-    **(e) CSS and JS are deliberately unminified.** The wire already
-    serves them gzip-encoded, `assets/` is a few tens of KB of text, and
-    the stylesheet a fork opens on day one should be the one a human
-    wrote. This matches the template's decision; it is recorded because
-    nothing in a diff distinguishes a deliberate non-minification from
-    an unfinished build step.
-
-    **(f) content images: there are none.** This repo's `docs/` contain
-    ZERO markdown images — measured, and the count is asserted in
-    `tests/test_a11y_block.py::test_this_repos_docs_contain_no_markdown_images`
-    so the not-applicable expires the moment a doc adds one. The
-    template ships `lib/directives/headings.py` with an `_intrinsic_size`
-    image renderer; this fork has no `headings.py` at all and needs
-    none. A sync must not read that absence as drift.
-
-    What IS ported from 6(f) is the pin on why its attributes cannot
-    ship: `loading="lazy"` and `decoding="async"` are not props of this
-    Dash's `html.Img` and Dash RAISES on an unknown one — measured here
-    on dash 4.2.0, `TypeError: The html.Img component (version 4.2.0)
-    received an unexpected keyword argument: loading`. The test pins the
-    REASON, so the day Dash learns them it goes red and says so.
 
 ```yaml posture
 ai_bots: {"/": 200, "/llms.txt": 200, "/healthz": 200}

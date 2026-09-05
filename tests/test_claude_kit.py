@@ -382,3 +382,91 @@ def test_divergences_posture_fence_is_wellformed():
                     "wrong about this repo's own tree"
                 )
                 break
+
+
+# ------------- 1.6.44 item 9: DIVERGENCES' recorded-conventions section --
+
+_DIVERGENCES = REPO / "DIVERGENCES.md"
+
+
+def test_the_recorded_conventions_section_exists():
+    """Item 9's detect. The header, and the sentence that explains it.
+
+    A DIVERGENCE says "this repo differs, on purpose". A RECORDED CONVENTION
+    says "this repo MATCHES, and the match is a decision" — almost always
+    something deliberately removed or deliberately not added. Nothing in a
+    diff distinguishes the second from an accident, so a sync restores it and
+    nobody notices.
+    """
+    text = _DIVERGENCES.read_text()
+    assert "## Recorded conventions (not divergences)" in text
+    flat = " ".join(text.split()).lower()
+    assert "a sync restores it" in flat, (
+        "the section header is there but the reason a reader needs is not"
+    )
+
+
+def test_the_guard_entries_name_code_that_still_exists():
+    """A guard entry pointing at a file or symbol that has moved is worse
+    than no entry: it reads as settled while guarding nothing.
+
+    THE DETECT HAS TO PARSE, not grep — and this file is where that lesson
+    keeps proving itself. A raw grep for `HeadAsGetMiddleware` in
+    lib/asgi_middleware.py matches the COMMENT that explains its absence; a
+    comment strip then matches the DOCSTRING doing the same. `ast` reads
+    definitions and references, and is the only one that answers the
+    question actually being asked.
+    """
+    import ast
+
+    text = _DIVERGENCES.read_text()
+    section = text.split("## Recorded conventions (not divergences)", 1)[1]
+    section = section.split("\n## ", 1)[0]
+
+    # Every TEST a guard entry cites as its pin must exist. Scoped to tests/
+    # deliberately: an entry may legitimately name a file to say this repo
+    # does NOT have it — `lib/directives/headings.py` is named for exactly
+    # that reason — and an existence sweep that did not know the difference
+    # would fail on the very sentence doing the recording. What cannot be
+    # wrong is the pin: an entry citing a test that has moved reads as
+    # settled while guarding nothing.
+    pins = set(re.findall(r"`(tests/[\w./]+)(?:::[\w.]+)?`", section))
+    assert pins, "no guard entry cites a test — this sweep would be vacuous"
+    for rel in pins:
+        path = REPO / rel.split("::", 1)[0]
+        assert path.exists(), f"a guard entry cites {rel}, which does not exist"
+
+    # ...and where an entry says a file is absent, it must really be absent.
+    if "lib/directives/headings.py" in section:
+        assert not (REPO / "lib" / "directives" / "headings.py").exists(), (
+            "the entry says this fork has no headings.py, and it now does"
+        )
+
+    # ...and the shim it says is absent must really be absent from the CODE,
+    # not merely from a grep that the prose about it would satisfy.
+    middleware = REPO / "lib" / "asgi_middleware.py"
+    tree = ast.parse(middleware.read_text())
+    defined = {node.name for node in ast.walk(tree)
+               if isinstance(node, (ast.ClassDef, ast.FunctionDef))}
+    assert defined, "nothing parsed out of asgi_middleware — a broken parse "
+    assert "HeadAsGetMiddleware" not in defined, (
+        "the shim came back; the guard entry says it must not"
+    )
+    referenced = {node.id for node in ast.walk(tree)
+                  if isinstance(node, ast.Name)}
+    assert "HeadAsGetMiddleware" not in referenced
+
+
+def test_a_raw_grep_would_have_got_this_wrong():
+    """The reason item 13 says "parse it", pinned as a measurement.
+
+    lib/asgi_middleware.py's own prose explains why there is no HEAD shim, so
+    the string is present in the file while the class is not. A detect that
+    greps reports the defect that the documentation of its absence describes
+    — and the better the comment, the more reliably it does so.
+    """
+    raw = (REPO / "lib" / "asgi_middleware.py").read_text()
+    assert "HeadAsGet" in raw, (
+        "the prose explaining the absent shim is gone; if that is deliberate, "
+        "this pin has lost its subject"
+    )
