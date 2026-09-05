@@ -270,7 +270,8 @@ from lib.canonical_host import canonical_redirect
 from lib.constants import (
     APP_VERSION, BASE_URL, CANONICAL_HOST, CANONICAL_HOST_REDIRECT,
     OG_IMAGE_ALT, OG_IMAGE_HEIGHT, OG_IMAGE_URL, OG_IMAGE_WIDTH,
-    PUBLISHER, SAME_AS, SITE_BRAND, SITE_DESCRIPTION, require_owned_base_url,
+    PUBLISHER, SAME_AS, SITE_BRAND, SITE_DESCRIPTION, SITE_SHORT_NAME,
+    require_owned_base_url,
 )
 from lib.versions import substitute_versions
 
@@ -638,7 +639,49 @@ ACCESS_ENABLED = _access.configure(
 # Wire up the package: /llms.txt, /<page>/llms.txt, /robots.txt, /sitemap.xml,
 # bot-detection middleware, and (on Dash 4.3+) MCP resource registration.
 # Works under Flask, FastAPI, and Quart — no gating needed.
-add_llms_routes(app, LLMSConfig(warn_missing_llms_doc=True))
+# THE HOST OWNS ITS API IDENTITY (1.6.44 item 1, dimll 2.9.4's three
+# `openapi_*` knobs). The package cannot read `/healthz` and must not guess:
+# without these the FastAPI lane's OpenAPI document is titled "FastAPI" with
+# version "0.1.0" — which is what an agent discovering this host through
+# `/openapi.json` reads as the app's name. This service RUNS fastapi, so that
+# document is the one on the wire here, not a showcase.
+#
+# BEHIND A SIGNATURE GUARD, and that is not caution — it is required on this
+# repo (ops correction to the 1.6.44 rider, measured on pannellum). This
+# fork's requirements line stays `>=2.8.0` until the fleet pin lands at
+# 1.6.45, and 2.8.0's LLMSConfig has ZERO openapi parameters, so passing
+# them unconditionally is a TypeError AT IMPORT on any venv or image that
+# resolves below 2.9.4 — the whole site fails to boot rather than degrading.
+# Ask the class what it accepts instead of asking requirements.txt what it
+# asked for: only the second question survives a cached Docker layer.
+# DELETE THIS GUARD when the pin lands (1.6.45).
+
+
+def _openapi_kwargs(config_cls) -> dict:
+    """The three `openapi_*` knobs, or `{}` on a config that lacks them."""
+    try:
+        accepted = inspect.signature(config_cls).parameters
+    except (TypeError, ValueError):        # pragma: no cover — unsignable
+        return {}
+    knobs = {
+        "openapi_title": f"{SITE_SHORT_NAME} API",
+        "openapi_description": SITE_DESCRIPTION,
+        # The API SURFACE's version — not the package's, and not this app's
+        # release. It moves when the routes change shape, so it is pinned
+        # here rather than wired to a changelog. The resolved PACKAGE version
+        # is reported by `llms_version` on /healthz: two different questions,
+        # deliberately not the same field.
+        "openapi_version": "1.0",
+    }
+    if any(name not in accepted for name in knobs):
+        return {}
+    return knobs
+
+
+add_llms_routes(app, LLMSConfig(
+    warn_missing_llms_doc=True,
+    **_openapi_kwargs(LLMSConfig),
+))
 
 # The ledger row (dimll 2.8.0): the package emits one event per corpus
 # document it serves and does no I/O with it; the tracker keeps it as the

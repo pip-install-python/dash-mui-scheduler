@@ -13,6 +13,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 *Documentation site and repository plumbing only; the `dash_mui_scheduler`
 package is unchanged — PyPI still carries 1.0.0.*
 
+### Added
+- **The health check now says which version of its documentation engine is
+  running, and where this site's traffic record lives.** Two questions that
+  could previously only be answered by asking the people who deployed it:
+  which release of the AI-readability package a running site actually
+  resolved, and whether its record of visits and reads is on storage that
+  survives a deploy or on a disk that is wiped every time. Both are now
+  readable from the outside, and the storage answer is measured rather than
+  taken from the deployment's own description of itself.
+
+### Fixed
+- **The version answer reached only half of this site.** The two ways this
+  site can be served describe their responses differently, and the stricter
+  one silently discarded any field it had not been told about in advance —
+  so the new version field existed everywhere except on the lane this site
+  actually runs. It now keeps whatever the health check reports, including
+  fields added later.
+
+## [2026-09-01] — the read table drops internal traffic, and props a machine can read
+
+*Documentation site and repository plumbing only; the `dash_mui_scheduler`
+package is unchanged — PyPI still carries 1.0.0. Shipped as `2cfc003` and
+live on the same day.*
+
 ### Fixed
 - **This site's own automated checks no longer appear in its traffic figures
   as if they were AI crawlers.** The hourly health check, the post-deploy

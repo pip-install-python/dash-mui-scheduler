@@ -20,7 +20,7 @@ from typing import List, Optional
 
 import dash
 from fastapi import APIRouter, FastAPI, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +61,23 @@ class HealthResponse(BaseModel):
     written to prevent, reintroduced per-backend.
     """
 
+    # ADDITIVE KEYS ARE KEPT (1.6.44 item 20, and the reason is item 1).
+    # A pydantic response_model DROPS every field it does not declare, in
+    # SILENCE. That is how `llms_version` — item 1's rider, whose entire
+    # purpose is to stop the resolved package version being self-reported —
+    # was present on the Flask lane and absent from this one on the template
+    # for two days. The template's production runs Flask, so nothing there
+    # said so; THIS HOST RUNS FASTAPI, so on this host it is the only lane
+    # that answers and the key would simply never have existed.
+    #
+    # Two defences, because either alone has already failed in the fleet:
+    # the known keys are declared below (so Swagger still documents them),
+    # and `extra="allow"` keeps whatever health_payload adds NEXT without
+    # anyone remembering to come back here. A model that silently narrows
+    # the payload is the "two lanes are different documents" trap wearing a
+    # type annotation.
+    model_config = ConfigDict(extra="allow")
+
     ok: bool = True
     backend: str
     dash_version: str
@@ -75,6 +92,12 @@ class HealthResponse(BaseModel):
     build: Optional[str] = None
     app: Optional[str] = None
     geo: Optional[dict] = None
+    # The resolved dash-improve-my-llms version (item 1's rider) and the
+    # ledger block (item 20). `llms_version` is Optional because
+    # health_payload OMITS it when the import itself fails, which is the
+    # finding rather than a default worth inventing.
+    llms_version: Optional[str] = None
+    ledger: Optional[dict] = None
 
 
 # ---------------------------------------------------------------------------

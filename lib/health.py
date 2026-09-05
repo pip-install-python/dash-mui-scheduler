@@ -18,8 +18,10 @@ reported back as this app being slow.
 """
 from __future__ import annotations
 
+import json
 import os
 import platform
+from pathlib import Path
 
 import dash
 
@@ -57,11 +59,100 @@ def _resolved_country(headers=None) -> str:
         return "unavailable"
 
 
+def _llms_version() -> dict:
+    """``{"llms_version": "2.8.0"}``, or ``{}`` if the package cannot be read.
+
+    1.6.44 item 1's rider, in excalidraw's name and shape — adopted verbatim
+    so the fleet never carries two spellings of the same key.
+
+    It exists because the CI-vs-production version gap was otherwise
+    SELF-REPORTED: nothing on any host's wire said which wheel the running
+    process actually resolved. This repo declares a ``>=`` FLOOR, not a pin
+    (the fleet pin lands at 1.6.45), and a floor is exactly the declaration
+    that cannot be read backwards — the Docker layer caches, so the image
+    keeps whatever wheel it was first built with while requirements.txt goes
+    on saying ">=2.8.0" and CI resolves something newer. This key is the only
+    surface that can contradict either.
+
+    Omitted rather than reported as "unknown": a health payload that invents
+    a version is worse than one that is silent about it, and run.py's boot
+    floor already refuses to start below ``LLMS_PKG_FLOOR`` — so an absent
+    key here means the import broke AFTER boot, which is itself the finding.
+    """
+    try:
+        import dash_improve_my_llms as _pkg
+
+        version = getattr(_pkg, "__version__", None)
+        return {"llms_version": version} if version else {}
+    except Exception:
+        return {}
+
+
+def _ledger_block() -> dict:
+    """``{"path", "persistent", "visits", "reads"}`` — the ledger, from outside.
+
+    1.6.44 item 20. Three facts that were previously invisible on the wire.
+
+    ``persistent`` is MEASURED, never declared. True iff the resolved path
+    lies OUTSIDE the repository root — i.e. on a mounted disk such as
+    ``/var/data/...``. A path under the app tree is the container filesystem
+    and reads false EVEN WHERE A BLUEPRINT DECLARES A DISK: leaflet ran for
+    weeks with a declared disk and no disk, and nothing on the wire could
+    contradict the declaration. A boolean that reports the deployment's
+    INTENTION is worth nothing; this one reports the filesystem.
+
+    This host is exactly the case the item was written for: ``render.yaml``
+    DECLARES a 1GB disk at ``/var/data`` and points
+    ``TRAFFIC_ANALYTICS_FILE`` at it — and its own comment already says "A
+    DECLARATION ATTACHES NOTHING", verifiable until now only in a dashboard
+    tab nothing automated can read. If this key reads false in production,
+    the disk is not attached and every deploy has been wiping the ledger.
+
+    ``visits`` and ``reads`` are the two tables' current row counts, read
+    from the same file the tracker writes. A missing file is ``0`` and ``0``
+    — never an error, and /healthz stays 200: this block is a diagnostic,
+    and a diagnostic that can take the health probe down with it is a
+    liability.
+
+    Row CONTENTS never appear here. Counts, a boolean and a path.
+    """
+    block = {"path": None, "persistent": False, "visits": 0, "reads": 0}
+    try:
+        from lib.analytics_tracker import analytics_path
+
+        path = Path(analytics_path()).resolve()
+        block["path"] = str(path)
+        repo_root = Path(__file__).resolve().parent.parent
+        try:
+            path.relative_to(repo_root)
+            block["persistent"] = False      # inside the tree: container fs
+        except ValueError:
+            block["persistent"] = True       # outside it: a mounted disk
+
+        if path.exists():
+            data = json.loads(path.read_text())
+            if isinstance(data, dict):
+                for table in ("visits", "reads"):
+                    rows = data.get(table)
+                    block[table] = len(rows) if isinstance(rows, list) else 0
+    except Exception:
+        # Never let a diagnostic break the health probe. An unreadable or
+        # half-written ledger reports zeros, and the ``path`` already in the
+        # block is what a reader needs in order to go and look.
+        pass
+    return block
+
+
 def health_payload(backend: str, headers=None) -> dict:
     payload = {
         "ok": True,
         "backend": backend,
         "dash_version": dash.__version__,
+        # The RESOLVED dash-improve-my-llms version (1.6.44 item 1's rider).
+        # Additive: every key the fleet reads by name stays, and a RENAME is
+        # still the failure. See _llms_version for why a floor makes this the
+        # only surface that can contradict the declaration.
+        **_llms_version(),
         # WHICH interpreter is actually serving. Before this field a repo
         # could declare three different Pythons (image, CI matrix, platform
         # runtime) and nothing on the wire could contradict any of them —
@@ -71,6 +162,9 @@ def health_payload(backend: str, headers=None) -> dict:
         # DOCKER service, where the image IS the runtime declaration — the
         # image and its declaration can no longer part ways silently.
         "python": platform.python_version(),
+        # Where this host's ledger actually lives, whether it survives a
+        # deploy, and how much is in it (1.6.44 item 20). Additive.
+        "ledger": _ledger_block(),
     }
     # Which commit the RUNNING instance was built from. This is what lets CD
     # verify the artifact it shipped rather than whichever build happens to
