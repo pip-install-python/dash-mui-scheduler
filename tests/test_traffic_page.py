@@ -21,12 +21,18 @@ def _page():
     return importlib.reload(traffic)
 
 
-def _read(day, vendor_key, verified, path="/llms.txt", tier="index", nbytes=500):
+def _read(day, vendor_key, verified, path="/llms.txt", tier="index", nbytes=500,
+          verdict="served", status=200):
+    # `verdict`/`status` became parameters at 1.6.44 item 3. Before that every
+    # fixture row was hardcoded `served`, which is the shape that hides both
+    # of the failures item 3 exists to prevent: a board that folds enforcement
+    # into traffic, and one that drops it entirely, look identical when
+    # nothing was ever denied.
     ev = {k: None for k in EVENT_FIELDS}
     ev.update(ts=datetime(day.year, day.month, day.day, 12).timestamp(),
               path=path, method="GET", tier=tier, lane="crawler",
               bot_type="training", vendor_key=vendor_key, verified=verified,
-              verdict="served", status=200, bytes=nbytes, ua="ua", kind="read")
+              verdict=verdict, status=status, bytes=nbytes, ua="ua", kind="read")
     ev.pop("client_ip")
     return ev
 
@@ -104,3 +110,102 @@ def test_the_gate_opens_locally_with_the_dev_override(app_module, monkeypatch, f
     traffic = _page()
     monkeypatch.setenv("ALLOW_UNGATED_ADMIN", "1")
     assert "traffic-day" in str(traffic.layout())
+
+
+# ------------------------------------------- 1.6.44 item 3: the verdict column --
+
+
+def _hidden_admin_path(app_module) -> str:
+    """A real mark_hidden path from the registry, not a literal.
+
+    A hardcoded `/admin/traffic` would keep passing on a fork that renamed
+    or moved its admin pages, which is exactly the drift this repo has been
+    bitten by one file over.
+    """
+    import dash
+
+    admin = sorted(
+        p["path"] for p in dash.page_registry.values()
+        if p["path"].startswith("/admin/")
+    )
+    assert admin, "no admin pages registered — this pin would be vacuous"
+    return f"{admin[0]}/llms.txt"
+
+
+def test_a_denied_read_is_labelled_and_not_counted_among_serves(app_module):
+    """Item 3's acceptance: the board LABELS enforcement, never hides it.
+
+    A mark_hidden path fetched by a crawler is REFUSED, and that refusal is
+    the only visible evidence the delisting works. So it must appear as its
+    own row carrying its verdict, and it must not be added to serves — a
+    board that folds them together reports enforcement as traffic.
+    """
+    traffic = _page()
+    hidden = _hidden_admin_path(app_module)
+
+    reads_day = (
+        [_read(TODAY, "gptbot", "unverified", path="/llms.txt")] * 4
+        + [_read(TODAY, "gptbot", "unverified", path=hidden,
+                 verdict="denied", status=404)] * 2
+    )
+
+    served, not_served = traffic.serve_counts(reads_day)
+    assert (served, not_served) == (4, 2), (served, not_served)
+
+    rows = traffic.top_paths(reads_day)
+    cells = {(path, verdict): hits
+             for _, _, paths in rows for path, verdict, hits in paths}
+    assert cells[(hidden, "denied")] == 2, cells
+    assert cells[("/llms.txt", "served")] == 4, cells
+
+    # The same path under two verdicts stays TWO rows, which is the whole
+    # point of grouping on (path, verdict) rather than on path.
+    both = (
+        [_read(TODAY, "gptbot", "unverified", path=hidden)]
+        + [_read(TODAY, "gptbot", "unverified", path=hidden, verdict="denied")]
+    )
+    split = {(p, v) for _, _, paths in traffic.top_paths(both) for p, v, _ in paths}
+    assert split == {(hidden, "served"), (hidden, "denied")}, split
+
+
+def test_the_verdict_reaches_the_rendered_table_as_a_word(app_module):
+    """Labelled, not colour-coded. Colour alone puts the meaning in a
+    channel a screen reader and a colour-blind reader do not get."""
+    traffic = _page()
+    hidden = _hidden_admin_path(app_module)
+    rendered = str(traffic.top_paths_block(
+        [_read(TODAY, "gptbot", "unverified", path=hidden, verdict="denied")]
+    ))
+    assert "denied" in rendered, "the verdict never reached the table"
+    assert "verdict" in rendered, "the column header is missing"
+
+
+def test_the_contract_sentence_is_in_the_module_docstring(app_module):
+    """Read with ast.get_docstring, not grepped.
+
+    Item 3 asks for the sentence in the page docstring specifically; a grep
+    would pass on a comment, and a comment is not what a reader of this
+    module meets first.
+    """
+    import ast
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parent.parent / "pages" / "traffic.py"
+    doc = ast.get_docstring(ast.parse(src.read_text())) or ""
+    flat = " ".join(doc.split()).lower()
+    assert "labels enforcement" in flat and "never hides it" in flat, (
+        "the board's contract sentence is not in the module docstring"
+    )
+
+
+def test_the_rollup_vendors_shape_is_unchanged_by_item_3(app_module):
+    """Item 3 changes the BOARD, not the payload — the hub side is its own
+    drop, so `vendors[]` keys must not move here."""
+    from lib.traffic_rollup import vendor_rows
+
+    rows = vendor_rows([_read(TODAY, "gptbot", "unverified", verdict="denied")])
+    assert rows, "vendor_rows returned nothing to check"
+    assert "verdict" not in rows[0], (
+        "item 3 leaked a verdict key into the rollup's vendor rows; the hub "
+        "contract is a separate drop"
+    )

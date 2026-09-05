@@ -23,6 +23,13 @@ package is unchanged — PyPI still carries 1.0.0.*
   readable from the outside, and the storage answer is measured rather than
   taken from the deployment's own description of itself.
 
+- **The operator traffic board now says when a crawler was refused, instead
+  of counting it as a read.** Pages this site deliberately keeps out of the
+  AI-readable corpus — the two owner-only pages — are refused when a crawler
+  asks for them, and that refusal is the only evidence the exclusion works.
+  It now appears as its own labelled row rather than being added to the
+  served totals or dropped from the table.
+
 ### Fixed
 - **Uptime monitors can check this site the way they normally do.** A
   lightweight "are you alive?" request — the default for most monitoring
