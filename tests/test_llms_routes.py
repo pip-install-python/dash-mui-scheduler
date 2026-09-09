@@ -452,3 +452,107 @@ def test_nav_block_is_absent_from_the_root_index(client):
     body = client.get("/llms.txt").text
     assert "## Pages" in body, "the root document should be an index"
     assert not CHROME.search(body), "viewer chrome leaked into the root index"
+
+
+# ------------------- the OpenAPI document renders at all (2026-09-08) --
+
+
+def test_the_openapi_document_builds_for_every_route(app_module):
+    """`GET /openapi.json` answered 500 for the WHOLE application, live.
+
+    Found by the ops seat on the wire 2026-09-08 and reproduced here. One
+    route poisoned the document for all of them: `lib/clerk_webhook`'s
+    FastAPI handler took `request: Request` under
+    `from __future__ import annotations`, so the annotation was the STRING
+    "Request"; FastAPI resolves such names from MODULE globals, `Request` was
+    imported inside `register_webhook` and is therefore a local, the lookup
+    failed, and pydantic could not build a schema for the unresolved
+    ForwardRef. `/docs` and `/redoc` still answered 200 — they are shells
+    that fetch this document — so nothing that checked status codes could
+    see it.
+
+    Asserted PER ROUTE rather than on the whole document, so a failure names
+    the offender instead of saying "500".
+    """
+    from lib.backend import get_backend_info
+
+    if get_backend_info().name != "fastapi":
+        pytest.skip("no OpenAPI document on this lane")
+
+    from fastapi.openapi.utils import get_openapi
+    from fastapi.routing import APIRoute
+
+    server = app_module.app.server
+    routes = [r for r in server.routes if isinstance(r, APIRoute)]
+    assert len(routes) >= 5, (
+        f"only {len(routes)} APIRoute(s) — this sweep would be near-vacuous"
+    )
+
+    broken = []
+    for route in routes:
+        try:
+            get_openapi(title="t", version="1", routes=[route])
+        except Exception as exc:
+            broken.append(f"{sorted(route.methods)} {route.path}: "
+                          f"{type(exc).__name__}")
+    assert broken == [], (
+        f"{len(broken)} of {len(routes)} routes cannot be described, which "
+        f"makes /openapi.json 500 for ALL of them: {broken}"
+    )
+
+
+def test_no_handler_annotation_survives_as_an_unresolved_string(app_module):
+    """The CLASS of defect, not the one instance.
+
+    Any FastAPI handler whose annotations cannot be resolved from its own
+    module globals will do this again. `lib/agent_key` already carried a
+    docstring warning about it; `lib/clerk_webhook` had the future import
+    anyway. This is that warning with teeth.
+    """
+    import typing
+
+    from lib.backend import get_backend_info
+
+    if get_backend_info().name != "fastapi":
+        pytest.skip("no OpenAPI document on this lane")
+
+    from fastapi.routing import APIRoute
+
+    unresolved = []
+    for route in app_module.app.server.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        fn = route.endpoint
+        try:
+            typing.get_type_hints(fn)
+        except Exception as exc:
+            unresolved.append(
+                f"{route.path} -> {fn.__module__}.{fn.__qualname__}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+    assert unresolved == [], (
+        "these handlers have annotations that cannot be resolved from their "
+        "module globals — a locally imported name under "
+        "`from __future__ import annotations` is the usual cause: "
+        + "; ".join(unresolved)
+    )
+
+
+def test_clerk_webhook_does_not_postpone_its_annotations():
+    """Source-pinned, because the behavioural tests above only run on the
+    FastAPI lane and the future import is invisible on the others."""
+    import ast
+
+    from conftest import REPO_ROOT
+
+    for module in ("clerk_webhook", "agent_key"):
+        tree = ast.parse((REPO_ROOT / "lib" / f"{module}.py").read_text())
+        futures = [a.name for n in tree.body
+                   if isinstance(n, ast.ImportFrom) and n.module == "__future__"
+                   for a in n.names]
+        assert "annotations" not in futures, (
+            f"lib/{module}.py postpones its annotations again — its FastAPI "
+            "handler takes `request: Request` from a LOCAL import, so the "
+            "name will not resolve and /openapi.json will 500 for the whole "
+            "application"
+        )

@@ -744,6 +744,43 @@ def satellite_checks(base: str) -> None:
                   f"generate, first: {injected[0]}" if injected else "")
                + (f" — edge marker: {markers[0]!r}" if markers else ""))
 
+    def openapi_document_renders():
+        """`/openapi.json` is a DOCUMENT, and nothing was reading it.
+
+        Added 2026-09-08 after the ops seat found this host answering 500
+        there while `/docs`, `/redoc`, `/healthz` and every `/api/*` route
+        answered 200 — because Swagger UI and ReDoc are shells that fetch
+        this document in the browser, so a status sweep over the routes sees
+        four greens and misses that the thing they render does not exist.
+        One route with an unresolvable annotation poisons the document for
+        the whole application.
+
+        SKIPPED where the host does not serve one: the document is a FastAPI
+        surface, and the lane is read from the HOST's own /healthz rather
+        than assumed from this checkout — the script may be pointed at a
+        peer.
+        """
+        status, _, health = get("/healthz")
+        expect(status == 200, f"/healthz {status}")
+        try:
+            backend = json.loads(health).get("backend")
+        except Exception:
+            backend = None
+        if backend != "fastapi":
+            skip(f"host reports backend={backend!r} — no OpenAPI document")
+
+        status, headers, text = get("/openapi.json")
+        expect(status == 200,
+               f"/openapi.json {status} — /docs and /redoc will render empty")
+        try:
+            doc = json.loads(text)
+        except Exception as exc:
+            raise SmokeFailure(f"/openapi.json is not JSON: {exc}")
+        paths = doc.get("paths") or {}
+        expect(len(paths) > 0,
+               "/openapi.json describes zero paths — it rendered, but it "
+               "documents nothing")
+
     for name, fn in (
         ("healthz_ok", healthz_ok),
         ("head_get_parity_three_uas", head_get_parity_three_uas),
@@ -751,6 +788,7 @@ def satellite_checks(base: str) -> None:
         ("discovery_link_headers_per_lane", discovery_link_headers_per_lane),
         ("directory_counts_are_derived", directory_counts_are_derived),
         ("ai_bot_posture", ai_bot_posture),
+        ("openapi_document_renders", openapi_document_renders),
         ("python_matches_declared", python_matches_declared),
         ("llms_txt_identity", llms_txt_identity),
         ("llms_txt_names_the_hub", llms_txt_names_the_hub),

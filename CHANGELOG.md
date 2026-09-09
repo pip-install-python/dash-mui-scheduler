@@ -13,6 +13,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 *Documentation site and repository plumbing only; the `dash_mui_scheduler`
 package is unchanged — PyPI still carries 1.0.0.*
 
+### Fixed
+- **The machine-readable description of this site's API is readable again.**
+  Asking the site for `/openapi.json` — the document that tells a program what
+  this site's endpoints accept and return — returned an error instead of the
+  document, and had done since the first release. A single internal route
+  described itself in a way the document builder could not interpret, and one
+  bad route makes the whole document fail rather than just its own entry. The
+  interactive API pages at `/docs` and `/redoc` looked fine because they are
+  empty shells that fetch this document in the browser: they loaded, and then
+  showed nothing.
+
+## [2026-09-05] — what the site records about you, a Legal section, and a health check that answers
+
+*Documentation site and repository plumbing only; the `dash_mui_scheduler`
+package is unchanged — PyPI still carries 1.0.0. Shipped as `655dfde` and
+live the same day.*
+
 ### Added
 
 - **The health check now says which version of its documentation engine is

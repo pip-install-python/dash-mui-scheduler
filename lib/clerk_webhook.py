@@ -15,9 +15,23 @@ noise; unknown types are tolerated and land as a generic note):
   session.created · session.ended · session.revoked
 Skip email.created (fires for every verification email) and
 organization.* (no Clerk organizations here).
-"""
-from __future__ import annotations
 
+No ``from __future__ import annotations`` here, deliberately — the same rule
+`lib/agent_key.py` records for the same reason, and this module had the bug
+that one was written to prevent. PEP 563 turns the FastAPI handler's
+``request: Request`` into the STRING "Request", which FastAPI then resolves
+from MODULE globals — and ``Request`` is imported inside
+``register_webhook``, so it is a local and the lookup fails. The annotation
+stays an unresolved ForwardRef, and on this route the consequence was worse
+than agent_key's silent 422: pydantic cannot build a schema for it, so
+``GET /openapi.json`` answered **500 for the entire application** — every
+route, not just this one — and took Swagger UI and ReDoc with it. Live from
+the first commit until 1.6.44's follow-up; measured 2026-09-08.
+
+Without the future import the annotation is evaluated at ``def`` time, in the
+enclosing scope where ``Request`` is bound, and FastAPI recognises it as the
+request object instead of a field.
+"""
 import json
 import logging
 import os
