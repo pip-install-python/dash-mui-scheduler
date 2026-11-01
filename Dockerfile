@@ -10,7 +10,7 @@
 # This service is Render's DOCKER runtime — the image is the whole runtime
 # declaration, there is no dashboard PYTHON_VERSION to drift from it — and
 # tests/test_python_version.py holds the CI matrix and cd.yml to this line.
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # PYTHONUNBUFFERED is load-bearing: without it Python block-buffers stdout to
 # the pipe and NONE of the boot diagnostics (bulletin wired/off, traffic
